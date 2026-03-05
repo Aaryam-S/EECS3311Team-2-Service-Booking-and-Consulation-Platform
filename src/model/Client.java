@@ -24,16 +24,21 @@ public class Client implements Observer {
         // TODO: handle notification
     }
 
+    //Payment Management
+    
     public void addPaymentMethod(SavedPaymentMethod method) {
-        // TODO
+        if (method == null) {
+            throw new IllegalArgumentException("Payment method cannot be null.");
+        }
+        savedPaymentMethods.add(method);   
     }
 
     public void updatePaymentMethod(String methodId, SavedPaymentMethod method) {
-        // TODO
+        // TODO: implement after when SavedPaymentMethod is ready
     }
 
     public void removePaymentMethod(String methodId) {
-        // TODO
+        // TODO: implement after when SavedPaymentMethod is ready
     }
 
     public List<SavedPaymentMethod> listPaymentMethods() {
