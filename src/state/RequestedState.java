@@ -12,7 +12,7 @@ public class RequestedState implements BookingState {
     @Override
     public void confirm(Booking context) {
         System.out.println("Consultant accepted. Booking Confirmed.");
-        context.setState(new ConfirmedState()); 
+        context.setState(new ConfirmedState());
     }
 
     @Override
