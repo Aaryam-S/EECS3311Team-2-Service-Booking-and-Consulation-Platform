@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 import model.PaymentReceipt;
 import model.SavedPaymentMethod;
+import notification.NotificationService;
 import strategy.PaymentStrategy;
 import strategy.BankTransferStrategy;
 import strategy.CreditCardStrategy;
@@ -49,7 +50,12 @@ public class PaymentService {
         LocalDateTime timestamp = LocalDateTime.now();
         String status = "SUCCESS";
         
-        return new PaymentReceipt(transactionId, amount, methodType, timestamp, status);
+        PaymentReceipt receipt = new PaymentReceipt(transactionId, amount, methodType, timestamp, status);
+        
+        NotificationService.getInstance().notifyObservers(
+        		"Payment confirmation: payment of $" +amount + " was processed successfully."
+        );
+        return receipt;
 	}
 	
 	public PaymentReceipt processWithSavedMethod(double amount, SavedPaymentMethod method) {
@@ -66,21 +72,31 @@ public class PaymentService {
         switch (method.getType().toLowerCase()) {
         case "credit card":
         case "creditcard":
-            strategy = new CreditCardStrategy();
+            strategy = new CreditCardStrategy(
+            		method.getCardNumber(),
+                    method.getExpiryMonth(),
+                    method.getExpiryYear(),
+                    method.getCvv());
             break;
 
         case "debit card":
         case "debitcard":
-            strategy = new DebitCardStrategy();
+            strategy = new DebitCardStrategy(
+            		method.getCardNumber(),
+                    method.getExpiryMonth(),
+                    method.getExpiryYear(),
+                    method.getCvv());
             break;
 
         case "paypal":
-            strategy = new PayPalStrategy();
+            strategy = new PayPalStrategy(method.getEmail());
             break;
 
         case "bank transfer":
         case "banktransfer":
-            strategy = new BankTransferStrategy();
+            strategy = new BankTransferStrategy(
+            		method.getAccountNumber(),
+                    method.getRoutingNumber());
             break;
             
         default:

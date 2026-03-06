@@ -2,6 +2,8 @@ package model;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import notification.NotificationService;
 import notification.Observer;
 
 public class Consultant implements Observer {
@@ -38,6 +40,33 @@ public class Consultant implements Observer {
         	availability = new ArrayList<>();
         }
     }
+    
+    public void acceptBooking(Booking booking) {
+    	if (booking == null) {
+    		throw new IllegalArgumentException("Booking cant be null");
+    	}
+        booking.confirm();
+        NotificationService.getInstance().notifyObservers("Booking Accepted");
+   
+    }
+
+    public void rejectBooking(Booking booking) {
+    	if (booking == null) {
+    		throw new IllegalArgumentException("Booking cant be null");
+    	}
+    	
+        booking.reject();
+        NotificationService.getInstance().notifyObservers("Booking Rejected");
+    }
+
+    public void completeBooking(Booking booking) {
+    	if (booking == null) {
+    		throw new IllegalArgumentException("Booking cant be null");
+    	}
+        booking.complete();
+        NotificationService.getInstance().notifyObservers("Booking Complete");
+    }
+    
 
     // Getters and Setters
     public String getName() {

@@ -15,7 +15,9 @@ public class Client implements Observer {
     private List<String> notifications;
 
     // Constructor
-    public Client() {
+    public Client(String name, String email) {
+    	this.name = name;
+    	this.email = email;
         this.savedPaymentMethods = new ArrayList<>();
         this.paymentHistory = new ArrayList<>();
         this.bookings = new ArrayList<>();

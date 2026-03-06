@@ -12,6 +12,7 @@ import model.SavedPaymentMethod;
 import model.Service;
 import model.SystemPolicy;
 import model.TimeSlot;
+import notification.NotificationService;
 import policy.FlexibleCancellation;
 import policy.NoRefundCancellation;
 import policy.StrictCancellation;
@@ -34,10 +35,14 @@ public class Main {
         System.out.println("=======================================");
 
         Admin admin = new Admin();
-        Client client = new Client();
-        Consultant consultant = new Consultant();
+        Client client = new Client("Joe", "joe@gmail.com");
+        Consultant consultant = new Consultant("Dave", "Software Consulting");
         paymentService = new PaymentService(); 
-        catalogService = CatalogService.getInstance(); 
+        catalogService = CatalogService.getInstance();
+        
+        NotificationService notificationService = NotificationService.getInstance();
+        notificationService.subscribe(client);
+        notificationService.subscribe(consultant);
 
         System.out.println("\n[UC11] Approve Consultant Registration");
         admin.approveConsultant(consultant);
@@ -93,7 +98,7 @@ public class Main {
         System.out.println("\n[UC6] Manage Payment Methods");
 
         SavedPaymentMethod creditCard =
-                new SavedPaymentMethod("1", "creditcard", "**** **** **** 1234", 12, 2028);
+                new SavedPaymentMethod("1", "creditcard", "1234567812345678", "123", 12, 2028);
 
         SavedPaymentMethod paypal =
                 new SavedPaymentMethod("2", "paypal", "user@email.com");
@@ -214,10 +219,9 @@ public class Main {
         System.out.println("\nInteractive Phase 1 (CLI)");
 
         scanner = new Scanner(System.in);
-        interactiveClient = new Client();
-        interactiveClient.setName("Interactive User");
+        interactiveClient = new Client("Interactive User", "user@test.com");
         
-        interactiveClient.addPaymentMethod(new SavedPaymentMethod("99", "creditcard", "**** 9999", 12, 2026));
+        interactiveClient.addPaymentMethod(new SavedPaymentMethod("99", "creditcard", "1234567812349999", "123", 12, 2026));
         interactiveClient.addPaymentMethod(new SavedPaymentMethod("100", "paypal", "user@example.com"));
 
         interactiveConsultant = new Consultant("Dr. Interactive", "Business Strategy");
