@@ -1,5 +1,11 @@
 package policy;
 
-public interface CancellationPolicy {
+import model.Booking;
 
+public interface CancellationPolicy {
+ 
+	//Methods
+	boolean canCancel(Booking booking);
+	
+	double cancellationFee(Booking booking);
 }
