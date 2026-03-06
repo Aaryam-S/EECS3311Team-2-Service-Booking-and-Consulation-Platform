@@ -2,6 +2,7 @@ package policy;
 
 import model.Booking;
 
+
 public class FlexibleCancellation implements CancellationPolicy {
 
 	//Constructor
@@ -12,14 +13,20 @@ public class FlexibleCancellation implements CancellationPolicy {
 	//Methods
 	@Override
 	public boolean canCancel(Booking booking) {
-		// TODO: flexible cancellation rules
-		return true;
+		if (booking == null) {
+            throw new IllegalArgumentException("Booking cannot be null.");
+        }
+
+        return true;
 	}
 	
 	@Override
 	public double cancellationFee(Booking booking) {
-		// TODO
-		return 0.0;
+		if (booking == null) {
+            throw new IllegalArgumentException("Booking cannot be null.");
+        }
+
+        return 0.0;
 	}
 	
 }
