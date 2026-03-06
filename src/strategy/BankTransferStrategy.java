@@ -7,21 +7,23 @@ public class BankTransferStrategy implements PaymentStrategy {
     private String routingNumber;
 
     //Constructor
-    public BankTransferStrategy() {
-
+    public BankTransferStrategy(String accountNumber, String routingNumber) {
+        this.accountNumber = accountNumber;
+        this.routingNumber = routingNumber;
     }
 
     //Methods
     @Override
     public boolean validateDetails() {
-        // TODO
-        return true;
+        boolean validAccount = accountNumber != null && accountNumber.matches("\\d{6,17}");
+        boolean validRouting = routingNumber != null && routingNumber.matches("\\d{5,9}");
+
+        return validAccount && validRouting;
     }
 
     @Override
     public boolean processPayment(double amount) {
-        // TODO
-        return true;
+    	 return amount > 0 && validateDetails();
     }
 
 }

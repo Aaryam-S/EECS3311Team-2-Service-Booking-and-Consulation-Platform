@@ -6,21 +6,22 @@ public class PayPalStrategy implements PaymentStrategy {
     private String email;
 
     //Constructor
-    public PayPalStrategy() {
-
+    public PayPalStrategy(String email) {
+    	this.email = email;
     }
 
     //Methods
     @Override
     public boolean validateDetails() {
-        // TODO
-        return true;
+        return email != null
+                && !email.isBlank()
+                && email.contains("@")
+                && email.contains(".");
     }
 
     @Override
     public boolean processPayment(double amount) {
-        // TODO
-        return true;
+    	return amount > 0 && validateDetails();
     }	
 	
 }

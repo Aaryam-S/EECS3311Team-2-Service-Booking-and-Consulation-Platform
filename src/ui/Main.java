@@ -18,10 +18,14 @@ import policy.StrictCancellation;
 import policy.TaxedPriceStrategy;
 import service.CatalogService;
 import service.PaymentService;
+import notification.NotificationService;
+
 
 public class Main {
 
     public static void main(String[] args) {
+    	
+
 
         System.out.println("=======================================");
         System.out.println("Consulting Platform Demo");
@@ -29,10 +33,14 @@ public class Main {
 
         // Shared objects
         Admin admin = new Admin();
-        Client client = new Client();
-        Consultant consultant = new Consultant();
+        Client client = new Client("Joe","joe@gmail.com");
+        Consultant consultant = new Consultant("Dave","Software Consulting");
         PaymentService paymentService = new PaymentService();
         CatalogService catalogService = CatalogService.getInstance();
+        
+        NotificationService notificationService = NotificationService.getInstance();
+        notificationService.subscribe(client);
+        notificationService.subscribe(consultant);
 
         // =========================
         // UC11 - Approve Consultant Registration
@@ -51,9 +59,9 @@ public class Main {
         admin.setRefundEnabled(true);
 
         SystemPolicy.getInstance().setTaxRate(0.13);
-        SystemPolicy.getInstance().setCancellationFee(20.0);
+        SystemPolicy.getInstance().setCancellationFee(20.0); 
 
-        System.out.println("Pricing strategy set to TaxedPriceStrategy");
+        System.out.println("Pricing strategy set to TaxedPriceStrategy");  
         System.out.println("Cancellation policy set to StrictCancellation");
         System.out.println("Tax rate: " + SystemPolicy.getInstance().getTaxRate());
         System.out.println("Cancellation fee: " + SystemPolicy.getInstance().getCancellationFee());
@@ -61,8 +69,8 @@ public class Main {
         // =========================
         // UC1 - Browse Consulting Services
         // =========================
-        System.out.println("\n[UC1] Browse Consulting Services");
-        List<Service> services = catalogService.getAllServices();
+        System.out.println("\n[UC1] Browse Consulting Services"); 
+        List<Service> services = catalogService.getAllServices();	
         for (Service service : services) {
             System.out.println(service);
         }
@@ -99,9 +107,8 @@ public class Main {
         // =========================
         // UC9 - Accept Booking Request
         // =========================
-        System.out.println("\n[UC9] Accept Booking Request");
-        booking1.confirm();
-        System.out.println("Booking accepted.");
+        System.out.println("\n[UC9] Accept Booking Request"); 
+        consultant.acceptBooking(booking1);
         System.out.println("Booking state: " + booking1.getStateName());
 
         // =========================
@@ -110,7 +117,7 @@ public class Main {
         System.out.println("\n[UC6] Manage Payment Methods");
 
         SavedPaymentMethod creditCard =
-                new SavedPaymentMethod("1", "creditcard", "**** **** **** 1234", 12, 2028);
+                new SavedPaymentMethod("1", "creditcard", "1234567812345678", "789", 12, 2028); 
 
         SavedPaymentMethod paypal =
                 new SavedPaymentMethod("2", "paypal", "user@email.com");
@@ -176,9 +183,8 @@ public class Main {
         // =========================
         // UC10 - Complete a Booking
         // =========================
-        System.out.println("\n[UC10] Complete a Booking");
-        booking1.complete();
-        System.out.println("Booking completed.");
+        System.out.println("\n[UC10] Complete a Booking"); 
+        consultant.completeBooking(booking1);
         System.out.println("Booking state: " + booking1.getStateName());
 
         // =========================
@@ -216,9 +222,9 @@ public class Main {
         );
         Booking booking3 = new Booking(client, consultant, selectedService, slot3);
         client.addBooking(booking3);
-        booking3.reject();
+        consultant.rejectBooking(booking3);
 
-        System.out.println("Booking rejected.");
+        
         System.out.println("Booking state: " + booking3.getStateName());
 
         // =========================
@@ -237,12 +243,6 @@ public class Main {
         admin.setCancellationPolicy(new NoRefundCancellation());
         double noRefundFee = SystemPolicy.getInstance().getCancellationPolicy().cancellationFee(booking1);
         System.out.println("No refund cancellation fee: " + noRefundFee + " (no refund)");
-
-        // =========================
-        // Notifications placeholder
-        // =========================
-        System.out.println("\n[Notifications]");
-        System.out.println("NotificationService integration will be added when the notification package is completed.");
 
         System.out.println("\n=======================================");
         System.out.println("Demo complete");
