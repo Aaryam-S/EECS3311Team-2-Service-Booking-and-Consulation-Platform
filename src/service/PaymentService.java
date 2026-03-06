@@ -1,8 +1,14 @@
 package service;
 
+import java.time.LocalDateTime;
+import java.util.UUID;
 import model.PaymentReceipt;
 import model.SavedPaymentMethod;
 import strategy.PaymentStrategy;
+import strategy.BankTransferStrategy;
+import strategy.CreditCardStrategy;
+import strategy.DebitCardStrategy;
+import strategy.PayPalStrategy;
 
 
 public class PaymentService {
@@ -14,6 +20,7 @@ public class PaymentService {
 	
 	//Methods
 	public PaymentReceipt process(double amount, PaymentStrategy strategy) {
+		
 		if (strategy == null) {
 			throw new IllegalArgumentException("Payment strategy cant be null.");
 		}
@@ -36,10 +43,13 @@ public class PaymentService {
             return null;
         }
         
-        // Create receipt (field filling needs to be done) 
-        PaymentReceipt receipt = new PaymentReceipt();
-
-        return receipt;
+        // Create receipt
+        String transactionId = generateTransactionId();
+        String methodType = strategy.getClass().getSimpleName();
+        LocalDateTime timestamp = LocalDateTime.now();
+        String status = "SUCCESS";
+        
+        return new PaymentReceipt(transactionId, amount, methodType, timestamp, status);
 	}
 	
 	public PaymentReceipt processWithSavedMethod(double amount, SavedPaymentMethod method) {
@@ -51,8 +61,32 @@ public class PaymentService {
             throw new IllegalArgumentException("Amount must be greater than 0.");
         }
 		
-        // Need to implement Mapping SavedPaymentMethod to PaymentStrategy 
-        return null;
+        PaymentStrategy strategy;
+        
+        switch (method.getType().toLowerCase()) {
+        case "credit card":
+        case "creditcard":
+            strategy = new CreditCardStrategy();
+            break;
+
+        case "debit card":
+        case "debitcard":
+            strategy = new DebitCardStrategy();
+            break;
+
+        case "paypal":
+            strategy = new PayPalStrategy();
+            break;
+
+        case "bank transfer":
+        case "banktransfer":
+            strategy = new BankTransferStrategy();
+            break;
+            
+        default:
+            throw new IllegalArgumentException("Unsupported saved payment method type.");
+        }    
+        return process(amount, strategy);     
 	}
 	
     //Helper for delay
@@ -65,4 +99,8 @@ public class PaymentService {
         }
     }
     
+    //Helper for transaction id
+    private String generateTransactionId() {
+        return UUID.randomUUID().toString();
+    }
 }

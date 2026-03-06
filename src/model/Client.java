@@ -34,11 +34,35 @@ public class Client implements Observer {
     }
 
     public void updatePaymentMethod(String methodId, SavedPaymentMethod method) {
-        // TODO: implement after when SavedPaymentMethod is ready
+       
+        if (methodId == null || methodId.isBlank()) {
+            throw new IllegalArgumentException("methodId cannot be null or empty.");
+        }
+
+        if (method == null) {
+            throw new IllegalArgumentException("Payment method cannot be null.");
+        }
+
+        for (int i = 0; i < savedPaymentMethods.size(); i++) {
+            SavedPaymentMethod current = savedPaymentMethods.get(i);
+
+            if (current.getId().equals(methodId)) {
+                savedPaymentMethods.set(i, method);
+                return;
+            }
+        }
+
+        throw new IllegalArgumentException("Payment method not found.");
+    	
     }
 
     public void removePaymentMethod(String methodId) {
-        // TODO: implement after when SavedPaymentMethod is ready
+    	
+        if (methodId == null || methodId.isBlank()) {
+            throw new IllegalArgumentException("methodId cannot be null or empty.");
+        }
+
+        savedPaymentMethods.removeIf(method -> method.getId().equals(methodId));
     }
 
     public List<SavedPaymentMethod> listPaymentMethods() {
@@ -48,5 +72,15 @@ public class Client implements Observer {
     public List<PaymentReceipt> viewPaymentHistory() {
         return paymentHistory;
     }
+    
+    public void addPaymentReceipt(PaymentReceipt receipt) {
+        if (receipt == null) {
+            throw new IllegalArgumentException("Receipt cannot be null.");
+        }
+
+        paymentHistory.add(receipt);
+    }
+    
+    
     
 }
