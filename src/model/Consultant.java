@@ -11,10 +11,13 @@ public class Consultant implements Observer {
     private String expertise;
     private boolean approved;
     private List<String> notifications;
+    private List<TimeSlot> availability;
 
     // Constructor
     public Consultant() {
         this.notifications = new ArrayList<>();
+        this.availability = new ArrayList<>();
+        
     }
 
     public Consultant(String name, String expertise) {
@@ -31,7 +34,9 @@ public class Consultant implements Observer {
     }
 
     public void setAvailability() {
-        // TODO
+        if (availability == null) {
+        	availability = new ArrayList<>();
+        }
     }
 
     // Getters and Setters

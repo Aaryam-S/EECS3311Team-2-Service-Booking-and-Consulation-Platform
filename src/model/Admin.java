@@ -19,10 +19,6 @@ public class Admin {
         consultant.setApproved(true);
     }
 
-    public void setPolicies() {
-        // TODO
-    }
-
     public void setCancellationPolicy(CancellationPolicy policy) {
     	SystemPolicy.getInstance().setCancellationPolicy(policy);
     }
