@@ -5,38 +5,69 @@ import java.util.ArrayList;
 import notification.Observer;
 
 public class Client implements Observer {
-	
-	//Attributes
+
+    // Attributes
     private String name;
     private String email;
     private List<SavedPaymentMethod> savedPaymentMethods;
     private List<PaymentReceipt> paymentHistory;
-    private List<Booking> bookings; 
-	
-    //Constructor 
+    private List<Booking> bookings;
+    private List<String> notifications;
+
+    // Constructor
     public Client() {
         this.savedPaymentMethods = new ArrayList<>();
         this.paymentHistory = new ArrayList<>();
         this.bookings = new ArrayList<>();
-    }
-    
-    //Methods
-    @Override
-    public void update(String message) {
-        // TODO: handle notification
+        this.notifications = new ArrayList<>();
     }
 
-    //Payment Management
-    
+    // Methods
+    @Override
+    public void update(String message) {
+        notifications.add(message);
+        System.out.println("[Client " + name + "] Notification: " + message);
+    }
+
+    public List<String> getNotifications() {
+        return notifications;
+    }
+
+    public String getLastNotification() {
+        if (notifications.isEmpty()) {
+            return null;
+        }
+        return notifications.get(notifications.size() - 1);
+    }
+
+    // Getters and Setters
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    // Payment Management
+
     public void addPaymentMethod(SavedPaymentMethod method) {
         if (method == null) {
             throw new IllegalArgumentException("Payment method cannot be null.");
         }
-        savedPaymentMethods.add(method);   
+        savedPaymentMethods.add(method);
     }
 
     public void updatePaymentMethod(String methodId, SavedPaymentMethod method) {
-       
+
         if (methodId == null || methodId.isBlank()) {
             throw new IllegalArgumentException("methodId cannot be null or empty.");
         }
@@ -55,11 +86,11 @@ public class Client implements Observer {
         }
 
         throw new IllegalArgumentException("Payment method not found.");
-    	
+
     }
 
     public void removePaymentMethod(String methodId) {
-    	
+
         if (methodId == null || methodId.isBlank()) {
             throw new IllegalArgumentException("methodId cannot be null or empty.");
         }
@@ -74,7 +105,7 @@ public class Client implements Observer {
     public List<PaymentReceipt> viewPaymentHistory() {
         return paymentHistory;
     }
-    
+
     public void addPaymentReceipt(PaymentReceipt receipt) {
         if (receipt == null) {
             throw new IllegalArgumentException("Receipt cannot be null.");
@@ -82,17 +113,17 @@ public class Client implements Observer {
 
         paymentHistory.add(receipt);
     }
-    
-    //Booking 
+
+    // Booking
     public void addBooking(Booking booking) {
         if (booking == null) {
             throw new IllegalArgumentException("Booking cannot be null.");
         }
         bookings.add(booking);
     }
-    
+
     public List<Booking> viewBookingHistory() {
         return bookings;
     }
-    
+
 }
