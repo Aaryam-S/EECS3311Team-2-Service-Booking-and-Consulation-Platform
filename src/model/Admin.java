@@ -5,9 +5,18 @@ import policy.PricingStrategy;
 
 public class Admin {
 
+	//Constructor
+	public Admin() {
+		
+	}
+	
 	//Methods
-    public void approveConsultant() {
-        // TODO
+    public void approveConsultant(Consultant consultant) {
+        if (consultant == null) {
+            throw new IllegalArgumentException("Consultant cannot be null.");
+        }
+
+        consultant.setApproved(true);
     }
 
     public void setPolicies() {
@@ -15,19 +24,19 @@ public class Admin {
     }
 
     public void setCancellationPolicy(CancellationPolicy policy) {
-        // TODO
+    	SystemPolicy.getInstance().setCancellationPolicy(policy);
     }
 
     public void setPricingStrategy(PricingStrategy strategy) {
-        // TODO
+    	 SystemPolicy.getInstance().setPricingStrategy(strategy);
     }
 
     public void setNotificationEnabled(boolean enabled) {
-        // TODO
+    	SystemPolicy.getInstance().setNotificationsEnabled(enabled);
     }
 
     public void setRefundEnabled(boolean enabled) {
-        // TODO
+    	SystemPolicy.getInstance().setRefundsEnabled(enabled);
     }
 
 }
