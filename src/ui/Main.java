@@ -2,7 +2,7 @@ package ui;
 
 import java.time.LocalDateTime;
 import java.util.List;
-
+import java.util.Scanner;
 import model.Admin;
 import model.Booking;
 import model.Client;
@@ -21,29 +21,28 @@ import service.PaymentService;
 
 public class Main {
 
+    private static Scanner scanner;
+    private static Client interactiveClient;
+    private static Consultant interactiveConsultant;
+    private static PaymentService paymentService;
+    private static CatalogService catalogService;
+
     public static void main(String[] args) {
 
         System.out.println("=======================================");
         System.out.println("Consulting Platform Demo");
         System.out.println("=======================================");
 
-        // Shared objects
         Admin admin = new Admin();
         Client client = new Client();
         Consultant consultant = new Consultant();
-        PaymentService paymentService = new PaymentService();
-        CatalogService catalogService = CatalogService.getInstance();
+        paymentService = new PaymentService(); 
+        catalogService = CatalogService.getInstance(); 
 
-        // =========================
-        // UC11 - Approve Consultant Registration
-        // =========================
         System.out.println("\n[UC11] Approve Consultant Registration");
         admin.approveConsultant(consultant);
         System.out.println("Consultant approved: " + consultant.isApproved());
 
-        // =========================
-        // UC12 - Define System Policies
-        // =========================
         System.out.println("\n[UC12] Define System Policies");
         admin.setPricingStrategy(new TaxedPriceStrategy());
         admin.setCancellationPolicy(new StrictCancellation());
@@ -58,21 +57,14 @@ public class Main {
         System.out.println("Tax rate: " + SystemPolicy.getInstance().getTaxRate());
         System.out.println("Cancellation fee: " + SystemPolicy.getInstance().getCancellationFee());
 
-        // =========================
-        // UC1 - Browse Consulting Services
-        // =========================
         System.out.println("\n[UC1] Browse Consulting Services");
         List<Service> services = catalogService.getAllServices();
         for (Service service : services) {
             System.out.println(service);
         }
 
-        // Pick a service for demo
         Service selectedService = catalogService.findServiceByName("Software Consulting");
 
-        // =========================
-        // UC8 - Manage Availability
-        // =========================
         System.out.println("\n[UC8] Manage Availability");
         consultant.setAvailability();
         TimeSlot slot1 = new TimeSlot(
@@ -86,9 +78,6 @@ public class Main {
         System.out.println("Available slot 1: " + slot1);
         System.out.println("Available slot 2: " + slot2);
 
-        // =========================
-        // UC2 - Request a Booking
-        // =========================
         System.out.println("\n[UC2] Request a Booking");
         Booking booking1 = new Booking(client, consultant, selectedService, slot1);
         client.addBooking(booking1);
@@ -96,17 +85,11 @@ public class Main {
         System.out.println("Booking ID: " + booking1.getId());
         System.out.println("Booking state: " + booking1.getStateName());
 
-        // =========================
-        // UC9 - Accept Booking Request
-        // =========================
         System.out.println("\n[UC9] Accept Booking Request");
         booking1.confirm();
         System.out.println("Booking accepted.");
         System.out.println("Booking state: " + booking1.getStateName());
 
-        // =========================
-        // UC6 - Manage Payment Methods
-        // =========================
         System.out.println("\n[UC6] Manage Payment Methods");
 
         SavedPaymentMethod creditCard =
@@ -140,9 +123,6 @@ public class Main {
             System.out.println("- " + method.getId() + " | " + method.getType() + " | " + method.getMaskedDetails());
         }
 
-        // =========================
-        // UC5 - Process Payment
-        // =========================
         System.out.println("\n[UC5] Process Payment");
         PaymentReceipt receipt1 = paymentService.processWithSavedMethod(150.0, creditCard);
 
@@ -162,9 +142,6 @@ public class Main {
             System.out.println("Payment failed.");
         }
 
-        // =========================
-        // UC7 - View Payment History
-        // =========================
         System.out.println("\n[UC7] View Payment History");
         for (PaymentReceipt receipt : client.viewPaymentHistory()) {
             System.out.println("Transaction ID: " + receipt.getTransactionId()
@@ -173,17 +150,11 @@ public class Main {
                     + " | Status: " + receipt.getStatus());
         }
 
-        // =========================
-        // UC10 - Complete a Booking
-        // =========================
         System.out.println("\n[UC10] Complete a Booking");
         booking1.complete();
         System.out.println("Booking completed.");
         System.out.println("Booking state: " + booking1.getStateName());
 
-        // =========================
-        // UC4 - View Booking History
-        // =========================
         System.out.println("\n[UC4] View Booking History");
         for (Booking booking : client.viewBookingHistory()) {
             System.out.println("Booking ID: " + booking.getId()
@@ -191,9 +162,6 @@ public class Main {
                     + " | State: " + booking.getStateName());
         }
 
-        // =========================
-        // UC3 - Cancel a Booking
-        // =========================
         System.out.println("\n[UC3] Cancel a Booking");
         Booking booking2 = new Booking(client, consultant, selectedService, slot2);
         client.addBooking(booking2);
@@ -206,9 +174,6 @@ public class Main {
         System.out.println("Cancellation fee under Strict policy: " + strictFee);
         System.out.println("Booking state: " + booking2.getStateName());
 
-        // =========================
-        // UC9 - Reject Booking Request
-        // =========================
         System.out.println("\n[UC9] Reject Booking Request");
         TimeSlot slot3 = new TimeSlot(
                 LocalDateTime.now().plusDays(3),
@@ -221,9 +186,6 @@ public class Main {
         System.out.println("Booking rejected.");
         System.out.println("Booking state: " + booking3.getStateName());
 
-        // =========================
-        // Extra: Show all cancellation policy behaviors
-        // =========================
         System.out.println("\n[Policy Comparison Demo]");
 
         admin.setCancellationPolicy(new FlexibleCancellation());
@@ -238,14 +200,144 @@ public class Main {
         double noRefundFee = SystemPolicy.getInstance().getCancellationPolicy().cancellationFee(booking1);
         System.out.println("No refund cancellation fee: " + noRefundFee + " (no refund)");
 
-        // =========================
-        // Notifications placeholder
-        // =========================
         System.out.println("\n[Notifications]");
         System.out.println("NotificationService integration will be added when the notification package is completed.");
 
         System.out.println("\n=======================================");
         System.out.println("Demo complete");
         System.out.println("=======================================");
+
+        startInteractivePhase();
+    }
+
+    private static void startInteractivePhase() {
+        System.out.println("\nInteractive Phase 1 (CLI)");
+
+        scanner = new Scanner(System.in);
+        interactiveClient = new Client();
+        interactiveClient.setName("Interactive User");
+        
+        interactiveClient.addPaymentMethod(new SavedPaymentMethod("99", "creditcard", "**** 9999", 12, 2026));
+        interactiveClient.addPaymentMethod(new SavedPaymentMethod("100", "paypal", "user@example.com"));
+
+        interactiveConsultant = new Consultant("Dr. Interactive", "Business Strategy");
+
+        runMainMenu();
+    }
+
+    private static void runMainMenu() {
+        while (true) {
+            System.out.println("\nMain Menu");
+            System.out.println("1. Client View");
+            System.out.println("2. Consultant View");
+            System.out.println("3. Exit");
+            System.out.print("Select: ");
+            String choice = scanner.nextLine();
+
+            switch (choice) {
+                case "1": runClientMenu(); break;
+                case "2": runConsultantMenu(); break;
+                case "3": return;
+                default: System.out.println("Invalid.");
+            }
+        }
+    }
+
+    private static void runClientMenu() {
+        while (true) {
+            System.out.println("\nClient Portal");
+            System.out.println("1. Browse Services");
+            System.out.println("2. Book a Session");
+            System.out.println("3. Process Payment");
+            System.out.println("4. Back");
+            System.out.print("Select: ");
+            String choice = scanner.nextLine();
+
+            switch (choice) {
+                case "1":
+                    List<Service> services = catalogService.getAllServices();
+                    for (int i = 0; i < services.size(); i++) System.out.println((i + 1) + ". " + services.get(i));
+                    break;
+                case "2":
+                    System.out.print("Enter Service ID to book: ");
+                    try {
+                        int id = Integer.parseInt(scanner.nextLine()) - 1;
+                        if (id >= 0 && id < catalogService.getAllServices().size()) {
+                            Service s = catalogService.getAllServices().get(id);
+                            TimeSlot ts = new TimeSlot(LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(1).plusHours(1));
+                            Booking b = new Booking(interactiveClient, interactiveConsultant, s, ts);
+                            interactiveClient.addBooking(b);
+                            System.out.println("Booking Requested (ID: " + b.getId() + ")");
+                        }
+                    } catch (Exception e) { System.out.println("Invalid input"); }
+                    break;
+                case "3":
+                    List<Booking> list = interactiveClient.viewBookingHistory();
+                    boolean found = false;
+                    for (Booking b : list) {
+                        if (b.getStateName().equalsIgnoreCase("Confirmed")) {
+                            System.out.println("ID: " + b.getId() + " | Price: " + b.getService().getRate());
+                            found = true;
+                        }
+                    }
+                    if (!found) { System.out.println("No confirmed bookings to pay."); break; }
+                    
+                    System.out.print("Enter Booking ID to pay: ");
+                    try {
+                        int pid = Integer.parseInt(scanner.nextLine());
+                        Booking toPay = null;
+                        for (Booking b : list) {
+                            if (b.getId() == pid && b.getStateName().equalsIgnoreCase("Confirmed")) {
+                                toPay = b;
+                            }
+                        }
+                        
+                        if (toPay != null) {
+                            System.out.println("Select Payment Method:");
+                            List<SavedPaymentMethod> methods = interactiveClient.listPaymentMethods();
+                            for (int i=0; i < methods.size(); i++) {
+                                System.out.println((i+1) + ". " + methods.get(i).getType() + " (" + methods.get(i).getMaskedDetails() + ")");
+                            }
+                            
+                            int mid = Integer.parseInt(scanner.nextLine()) - 1;
+                            if (mid >= 0 && mid < methods.size()) {
+                                PaymentReceipt r = paymentService.processWithSavedMethod(toPay.getService().getRate(), methods.get(mid));
+                                if (r != null) {
+                                    toPay.setPaymentReceipt(r);
+                                    toPay.pay();
+                                    System.out.println("Payment Successful.");
+                                    System.out.println("Transaction ID: " + r.getTransactionId());
+                                } else {
+                                    System.out.println("Payment failed.");
+                                }
+                            } else {
+                                System.out.println("Invalid method.");
+                            }
+                        } else {
+                            System.out.println("Booking not found.");
+                        }
+                    } catch (NumberFormatException e) { 
+                        System.out.println("Invalid input format."); 
+                    }
+                    break;
+                case "4": return;
+            }
+        }
+    }
+
+    private static void runConsultantMenu() {
+        List<Booking> requests = interactiveClient.viewBookingHistory();
+        boolean found = false;
+        for (Booking b : requests) {
+            if (b.getStateName().equalsIgnoreCase("Requested")) {
+                found = true;
+                System.out.println("Request ID: " + b.getId() + " | " + b.getService().getName());
+                System.out.print("[1] Accept [2] Reject: ");
+                String c = scanner.nextLine();
+                if (c.equals("1")) { b.confirm(); System.out.println("Accepted."); }
+                else if (c.equals("2")) { b.reject(); System.out.println("Rejected."); }
+            }
+        }
+        if (!found) System.out.println("No pending requests.");
     }
 }

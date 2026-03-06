@@ -88,7 +88,7 @@ The Service Booking and Consultation Platform is a Java-based application that f
 cd C:\xxx\xxx\EECS3311Team-2-Service-Booking-and-Consulation-Platform
 
 # Compile the project
-javac -d bin src\ui\Main.java
+javac -d bin -sourcepath src src/ui/Main.java
 
 # Run the application
 java -cp bin ui.Main
