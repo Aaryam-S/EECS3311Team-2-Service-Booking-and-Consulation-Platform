@@ -1,6 +1,7 @@
 package policy;
 
 import model.Booking;
+import model.SystemPolicy;
 
 public class StrictCancellation implements CancellationPolicy {
 
@@ -12,14 +13,20 @@ public class StrictCancellation implements CancellationPolicy {
 	//Methods
 	@Override
 	public boolean canCancel(Booking booking) {
-		// TODO: strict cancellation rules
-		return true;
+		 if (booking == null) {
+	            throw new IllegalArgumentException("Booking cannot be null.");
+	        }
+
+	        return true;
 	}
 	
 	@Override
 	public double cancellationFee(Booking booking) {
-		// TODO
-		return 0.0;
+		 if (booking == null) {
+	            throw new IllegalArgumentException("Booking cannot be null.");
+	        }
+
+		 return SystemPolicy.getInstance().getCancellationFee();
 	}
     
 }

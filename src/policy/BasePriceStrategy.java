@@ -12,8 +12,11 @@ public class BasePriceStrategy implements PricingStrategy {
     //Methods
     @Override
     public double finalPrice(Service service) {
-        // TODO: return base service price
-        return 0.0;
+    	if (service == null) {
+            throw new IllegalArgumentException("Service cannot be null.");
+        }
+
+        return service.getRate();
     }
 	
 }

@@ -7,6 +7,8 @@ public class Consultant implements Observer {
 	//Attributes
     private String name;
     private String expertise;
+    private boolean approved;
+    
 
     //Constructor
     public Consultant() {
@@ -21,6 +23,14 @@ public class Consultant implements Observer {
 
     public void setAvailability() {
         // TODO
+    }
+    
+    public boolean isApproved() {
+        return approved;
+    }
+    
+    public void setApproved(boolean approved) {
+        this.approved = approved;
     }
 	
 }

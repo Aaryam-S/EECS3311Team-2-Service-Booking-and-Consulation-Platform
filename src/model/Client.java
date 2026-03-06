@@ -11,11 +11,13 @@ public class Client implements Observer {
     private String email;
     private List<SavedPaymentMethod> savedPaymentMethods;
     private List<PaymentReceipt> paymentHistory;
+    private List<Booking> bookings; 
 	
     //Constructor 
     public Client() {
         this.savedPaymentMethods = new ArrayList<>();
         this.paymentHistory = new ArrayList<>();
+        this.bookings = new ArrayList<>();
     }
     
     //Methods
@@ -81,6 +83,16 @@ public class Client implements Observer {
         paymentHistory.add(receipt);
     }
     
+    //Booking 
+    public void addBooking(Booking booking) {
+        if (booking == null) {
+            throw new IllegalArgumentException("Booking cannot be null.");
+        }
+        bookings.add(booking);
+    }
     
+    public List<Booking> viewBookingHistory() {
+        return bookings;
+    }
     
 }
