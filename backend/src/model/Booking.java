@@ -8,13 +8,12 @@ public class Booking {
     private Client client;
     private Consultant consultant;
     private Service service;
-    private TimeSlot timeSlot; // Added this field
+    private TimeSlot timeSlot;
     private BookingState state;
     private PaymentReceipt paymentReceipt;
 
     private static int idCounter = 1;
 
-    // Updated constructor to include TimeSlot
     public Booking(Client client, Consultant consultant, Service service, TimeSlot timeSlot) {
         this.id = idCounter++;
         this.client = client;
@@ -28,7 +27,6 @@ public class Booking {
     // Context methods for State Pattern
     public void setState(BookingState state) {
         this.state = state;
-        // Optional: specific logic when entering a state can go here
     }
 
     public BookingState getState() {
