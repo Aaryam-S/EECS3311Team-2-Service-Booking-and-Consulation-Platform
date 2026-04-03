@@ -1,1 +1,4 @@
-# Arshjot: Write instructions to build/serve React
+FROM node:18
+WORKDIR /app
+COPY . .
+CMD ["echo", "Frontend placeholder"]

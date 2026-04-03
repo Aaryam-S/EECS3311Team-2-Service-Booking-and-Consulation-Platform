@@ -1,1 +1,4 @@
-# Arshjot: Write instructions to compile/run Java backend
+FROM openjdk:17
+WORKDIR /app
+COPY . .
+CMD ["echo", "Backend placeholder"]
