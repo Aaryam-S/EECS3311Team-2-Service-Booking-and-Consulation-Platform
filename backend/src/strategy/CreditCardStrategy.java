@@ -17,6 +17,10 @@ public class CreditCardStrategy implements PaymentStrategy {
         this.expiryYear = expiryYear;
         this.cvv = cvv;	
 	}
+
+	public CreditCardStrategy(String cardNumber) {
+		this(cardNumber, 12, 2027, "123");
+	}
 	
 	//Methods 
 	@Override 

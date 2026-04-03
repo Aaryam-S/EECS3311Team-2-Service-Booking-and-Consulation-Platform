@@ -2,21 +2,31 @@ package service;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+
 import model.PaymentReceipt;
 import model.SavedPaymentMethod;
 import notification.NotificationService;
-import strategy.PaymentStrategy;
 import strategy.BankTransferStrategy;
 import strategy.CreditCardStrategy;
 import strategy.DebitCardStrategy;
 import strategy.PayPalStrategy;
+import strategy.PaymentStrategy;
 
 
 public class PaymentService {
 
+	private static PaymentService instance;
+
 	//Constructor
-	public PaymentService() {
+	private PaymentService() {
 		
+	}
+
+	public static synchronized PaymentService getInstance() {
+		if (instance == null) {
+			instance = new PaymentService();
+		}
+		return instance;
 	}
 	
 	//Methods
