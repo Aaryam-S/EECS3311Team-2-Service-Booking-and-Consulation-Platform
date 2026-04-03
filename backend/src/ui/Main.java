@@ -3,6 +3,7 @@ package ui;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Scanner;
+
 import model.Admin;
 import model.Booking;
 import model.Client;
@@ -37,7 +38,7 @@ public class Main {
         Admin admin = new Admin();
         Client client = new Client("Joe", "joe@gmail.com");
         Consultant consultant = new Consultant("Dave", "Software Consulting");
-        paymentService = new PaymentService(); 
+        paymentService = PaymentService.getInstance(); 
         catalogService = CatalogService.getInstance();
         
         NotificationService notificationService = NotificationService.getInstance();

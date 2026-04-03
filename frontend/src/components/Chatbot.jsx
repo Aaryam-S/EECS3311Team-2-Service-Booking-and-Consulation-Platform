@@ -37,24 +37,24 @@ export default function Chatbot() {
     };
 
     return (
-        <div style={{ border: '1px solid #ccc', padding: '1rem', borderRadius: '8px', marginTop: '2rem' }}>
-            <h3> AI Assistant</h3>
+        <div style={{ border: '1px solid #4a5568', padding: '1rem', borderRadius: '8px', marginTop: '2rem', backgroundColor: '#2d3748' }}>
+            <h3 style={{ color: '#ffffff' }}> AI Assistant</h3>
 
-            <div style={{ height: '300px', overflowY: 'auto', marginBottom: '1rem', padding: '10px', backgroundColor: '#f9f9f9', borderRadius: '4px' }}>
+            <div style={{ height: '300px', overflowY: 'auto', marginBottom: '1rem', padding: '10px', backgroundColor: '#2d3748', borderRadius: '4px', border: '1px solid #4a5568' }}>
                 {messages.map((msg, index) => (
                     <div key={index} style={{ textAlign: msg.sender === 'user' ? 'right' : 'left', margin: '10px 0' }}>
                         <span style={{
                             display: 'inline-block',
                             padding: '8px 12px',
                             borderRadius: '15px',
-                            backgroundColor: msg.sender === 'user' ? '#007bff' : '#e2e3e5',
-                            color: msg.sender === 'user' ? 'white' : 'black'
+                            backgroundColor: msg.sender === 'user' ? '#007bff' : '#4a5568',
+                            color: '#ffffff'
                         }}>
                             {msg.text}
                         </span>
                     </div>
                 ))}
-                {isLoading && <div style={{ textAlign: 'left', color: '#888' }}><em>Typing...</em></div>}
+                {isLoading && <div style={{ textAlign: 'left', color: '#9da5b0' }}><em>Typing...</em></div>}
             </div>
 
             <form onSubmit={handleSend} style={{ display: 'flex', gap: '10px' }}>

@@ -27,9 +27,8 @@ public class ConfirmedState implements BookingState {
 
     @Override
     public void pay(Booking context) {
-        // Direct transition to payment flow
-        context.setState(new PendingPaymentState());
-        context.pay(); // Delegate immediately to pending payment logic
+        System.out.println("Payment processed successfully from Confirmed state.");
+        context.setState(new PaidState());
     }
 
     @Override
