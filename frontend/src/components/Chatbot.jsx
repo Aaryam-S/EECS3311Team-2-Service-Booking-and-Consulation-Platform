@@ -22,7 +22,7 @@ export default function Chatbot() {
 
         try {
             // 2. Send the message to the backend
-            const res = await axios.post(`${API_URL}/chat`, { message: userMsg });
+            const res = await axios.post(`${API_URL}/api/chat`, { message: userMsg });
 
             // 3. Add the bot's reply to the chat (handling a few common JSON formats)
             const botReply = res.data.reply || res.data || "I received your message!";
