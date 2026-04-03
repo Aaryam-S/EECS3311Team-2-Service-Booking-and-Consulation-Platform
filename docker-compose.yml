@@ -5,6 +5,14 @@ services:
       - "8080:8080"
     depends_on:
       - db
+    environment:
+      BACKEND_PORT: ${BACKEND_PORT}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      LLM_API_KEY: ${LLM_API_KEY}
 
   frontend:
     build: ./frontend
@@ -12,12 +20,20 @@ services:
       - "3000:3000"
     depends_on:
       - backend
+    environment:
+      VITE_BACKEND_URL: ${VITE_BACKEND_URL}
 
   db:
     image: postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: app
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
