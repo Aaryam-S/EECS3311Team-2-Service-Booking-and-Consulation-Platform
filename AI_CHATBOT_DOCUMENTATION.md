@@ -122,7 +122,7 @@ llm.api.key=${LLM_API_KEY:}
 - Gemini's API key is loaded from an **environment variable**: `LLM_API_KEY`.
 - The environment variable is set in `ChatbotService` with the help of Spring's `@Value` annotation.
 - Gemini's API key is **never** stored in source code.
-- `.env.example` contains a placeholder: `LLM_API_KEY=your_api_key_here`.
+- `.env.example` contains a placeholder: `LLM_API_KEY="AI...."`.
 
 ### Input Validation
 
