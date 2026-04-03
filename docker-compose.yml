@@ -24,7 +24,7 @@ services:
       VITE_BACKEND_URL: ${VITE_BACKEND_URL}
 
   db:
-    image: postgres
+    image: postgres:15
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME}
