@@ -28,7 +28,7 @@ import java.util.Map;
  *  - CORS is open for development; restrict to the real frontend origin in production.
  */
 @RestController
-@RequestMapping("/api/chat")
+@RequestMapping("/chat")
 @CrossOrigin(origins = "*")   // Adjust to frontend origin before production deploy
 public class ChatController {
 
