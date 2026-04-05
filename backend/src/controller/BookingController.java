@@ -1,344 +1,108 @@
 package controller;
 
-import java.sql.Timestamp;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
-import org.springframework.dao.EmptyResultDataAccessException;
-import org.springframework.http.ResponseEntity;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.*;
-
+import model.Booking;
+import model.Service;
+import model.SystemPolicy;
+import notification.NotificationService;
+import policy.CancellationPolicy;
 import service.CatalogService;
 import service.ClientService;
+import service.ConsultantService;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @CrossOrigin(origins = "*")
 public class BookingController {
 
-    private final JdbcTemplate jdbcTemplate;
-    private final CatalogService catalogService;
-    private final ClientService clientService;
+    @Autowired
+    private JdbcTemplate jdbc;
 
-    public BookingController(JdbcTemplate jdbcTemplate,
-                             CatalogService catalogService,
-                             ClientService clientService) {
-        this.jdbcTemplate = jdbcTemplate;
-        this.catalogService = catalogService;
-        this.clientService = clientService;
-    }
+    @Autowired
+    private ClientService clientService;
+
+    @Autowired
+    private ConsultantService consultantService;
 
     @GetMapping("/bookings")
     public ResponseEntity<List<Map<String, Object>>> getBookings(
             @RequestParam(required = false) Integer clientId,
             @RequestParam(required = false) Integer consultantId) {
 
-        StringBuilder sql = new StringBuilder(
-            "SELECT id, client_id AS \"clientId\", consultant_id AS \"consultantId\", " +
-            "client_name AS \"clientName\", consultant_name AS \"consultantName\", " +
-            "service_id AS \"serviceId\", service_name AS \"serviceName\", " +
-            "booking_time AS date, status, final_price AS \"finalPrice\", " +
-            "payment_method AS \"paymentMethod\", cancellation_fee AS \"cancellationFee\", " +
-            "timeslot_id AS \"timeslotId\" " +
-            "FROM bookings WHERE 1=1 "
-        );
-
+        String sql = "SELECT * FROM bookings WHERE 1=1";
+        List<Object> params = new ArrayList<>();
         if (clientId != null) {
-            sql.append("AND client_id = ").append(clientId).append(" ");
+            sql += " AND client_id = ?";
+            params.add(clientId);
         }
         if (consultantId != null) {
-            sql.append("AND consultant_id = ").append(consultantId).append(" ");
+            sql += " AND consultant_id = ?";
+            params.add(consultantId);
         }
+        sql += " ORDER BY id DESC";
 
-        sql.append("ORDER BY id");
-        return ResponseEntity.ok(jdbcTemplate.queryForList(sql.toString()));
+        List<Map<String, Object>> rows = jdbc.queryForList(sql, params.toArray());
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            result.add(toBookingMap(row));
+        }
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/timeslots")
     public ResponseEntity<List<Map<String, Object>>> getTimeslots(
             @RequestParam(required = false) Integer consultantId) {
 
-        if (consultantId == null) {
-            return ResponseEntity.ok(
-                jdbcTemplate.queryForList(
-                    "SELECT id, consultant_id AS \"consultantId\", slot_date AS date, " +
-                    "start_time AS \"startTime\", end_time AS \"endTime\", booked " +
-                    "FROM timeslots ORDER BY id"
-                )
-            );
+        String sql = "SELECT * FROM timeslots WHERE 1=1";
+        List<Object> params = new ArrayList<>();
+        if (consultantId != null) {
+            sql += " AND consultant_id = ?";
+            params.add(consultantId);
         }
+        sql += " ORDER BY date, start_time";
 
-        return ResponseEntity.ok(
-            jdbcTemplate.queryForList(
-                "SELECT id, consultant_id AS \"consultantId\", slot_date AS date, " +
-                "start_time AS \"startTime\", end_time AS \"endTime\", booked " +
-                "FROM timeslots WHERE consultant_id = ? ORDER BY id",
-                consultantId
-            )
-        );
+        List<Map<String, Object>> rows = jdbc.queryForList(sql, params.toArray());
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            result.add(toTimeslotMap(row));
+        }
+        return ResponseEntity.ok(result);
     }
 
     @DeleteMapping("/timeslots/{timeslotId}")
-    @Transactional
     public ResponseEntity<Map<String, Object>> deleteTimeslot(@PathVariable int timeslotId) {
-        Map<String, Object> slot;
-
-        try {
-            slot = jdbcTemplate.queryForMap(
-                "SELECT id, booked FROM timeslots WHERE id = ? FOR UPDATE",
-                timeslotId
-            );
-        } catch (EmptyResultDataAccessException e) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT * FROM timeslots WHERE id = ?", timeslotId);
+        if (rows.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("error", "Timeslot not found."));
         }
-
-        if (Boolean.TRUE.equals(slot.get("booked"))) {
+        Boolean booked = (Boolean) rows.get(0).get("booked");
+        if (Boolean.TRUE.equals(booked)) {
             return ResponseEntity.badRequest().body(Map.of("error", "Cannot delete a booked timeslot."));
         }
-
-        jdbcTemplate.update("DELETE FROM timeslots WHERE id = ?", timeslotId);
+        jdbc.update("DELETE FROM timeslots WHERE id = ?", timeslotId);
         return ResponseEntity.ok(Map.of("message", "Timeslot deleted."));
     }
 
-    @PostMapping("/bookings/{bookingId}/cancel")
-    @Transactional
-    public ResponseEntity<Map<String, Object>> cancelBooking(@PathVariable int bookingId) {
-        Map<String, Object> booking = getBookingById(bookingId);
-
-        if (booking == null) {
-            return ResponseEntity.status(404).body(Map.of("error", "Booking not found."));
-        }
-
-        String status = booking.get("status").toString();
-        if (!"Requested".equalsIgnoreCase(status) && !"Confirmed".equalsIgnoreCase(status)) {
-            return ResponseEntity.badRequest().body(Map.of(
-                "error", "Only requested/confirmed bookings can be cancelled."
-            ));
-        }
-
-        int serviceId = Integer.parseInt(booking.get("serviceId").toString());
-        Map<String, Object> service = catalogService.findServiceById(serviceId);
-
-        if (service == null) {
-            return ResponseEntity.status(500).body(Map.of("error", "Service for booking not found."));
-        }
-
-        Map<String, Object> policyRow = getPolicyRow();
-        String cancellationPolicy = policyRow.get("cancellationPolicy").toString().toLowerCase();
-
-        double cancellationFee;
-        if (cancellationPolicy.contains("strict")) {
-            cancellationFee = Double.parseDouble(policyRow.get("cancellationFee").toString());
-        } else if (cancellationPolicy.contains("norefund") || cancellationPolicy.contains("no refund")) {
-            cancellationFee = Double.parseDouble(service.get("price").toString());
-        } else {
-            cancellationFee = 0.0;
-        }
-
-        jdbcTemplate.update(
-            "UPDATE bookings SET status = 'Cancelled', cancellation_fee = ? WHERE id = ?",
-            cancellationFee, bookingId
-        );
-
-        if (booking.get("timeslotId") != null) {
-            jdbcTemplate.update(
-                "UPDATE timeslots SET booked = FALSE WHERE id = ?",
-                Integer.parseInt(booking.get("timeslotId").toString())
-            );
-        }
-
-        return ResponseEntity.ok(Map.of(
-            "message", "Booking cancelled successfully.",
-            "bookingId", bookingId,
-            "cancellationFee", cancellationFee
-        ));
-    }
-
-    @PostMapping("/bookings")
-    @Transactional
-    public ResponseEntity<Map<String, Object>> createBooking(@RequestBody Map<String, Object> body) {
-        Object clientIdObj = body.get("clientId");
-        Object serviceIdObj = body.get("serviceId");
-        Object dateObj = body.get("date");
-
-        if (clientIdObj == null || serviceIdObj == null || dateObj == null) {
-            return ResponseEntity.badRequest().body(Map.of(
-                "error", "clientId, serviceId, and date are required."
-            ));
-        }
-
-        int clientId;
-        int serviceId;
-
-        try {
-            clientId = Integer.parseInt(clientIdObj.toString());
-            serviceId = Integer.parseInt(serviceIdObj.toString());
-        } catch (NumberFormatException e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                "error", "clientId and serviceId must be numbers."
-            ));
-        }
-
-        Map<String, Object> client = clientService.getClientById(clientId);
-        if (client == null) {
-            return ResponseEntity.status(401).body(Map.of(
-                "error", "Client not found. Please login first."
-            ));
-        }
-
-        Map<String, Object> service = catalogService.findServiceById(serviceId);
-        if (service == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Invalid serviceId."));
-        }
-
-        Integer selectedTimeslotId = null;
-        Object timeslotIdObj = body.get("timeslotId");
-
-        if (timeslotIdObj != null) {
-            int timeslotId;
-
-            try {
-                timeslotId = Integer.parseInt(timeslotIdObj.toString());
-            } catch (NumberFormatException e) {
-                return ResponseEntity.badRequest().body(Map.of("error", "timeslotId must be a number."));
-            }
-
-            Map<String, Object> slot;
-            try {
-                slot = jdbcTemplate.queryForMap(
-                    "SELECT id, booked FROM timeslots WHERE id = ? FOR UPDATE",
-                    timeslotId
-                );
-            } catch (EmptyResultDataAccessException e) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Timeslot not found."));
-            }
-
-            if (Boolean.TRUE.equals(slot.get("booked"))) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Timeslot already booked."));
-            }
-
-            jdbcTemplate.update(
-                "UPDATE timeslots SET booked = TRUE WHERE id = ?",
-                timeslotId
-            );
-            selectedTimeslotId = timeslotId;
-        }
-
-        int consultantId = service.get("consultantId") == null
-                ? 0
-                : Integer.parseInt(service.get("consultantId").toString());
-
-        String consultantName = service.get("consultantName").toString();
-        String serviceName = service.get("name").toString();
-        String clientName = client.get("name").toString();
-        String date = dateObj.toString();
-
-        Integer bookingId = jdbcTemplate.queryForObject(
-            "INSERT INTO bookings " +
-            "(client_id, consultant_id, service_id, client_name, consultant_name, service_name, booking_time, status, timeslot_id) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, 'Requested', ?) RETURNING id",
-            Integer.class,
-            clientId,
-            consultantId,
-            serviceId,
-            clientName,
-            consultantName,
-            serviceName,
-            Timestamp.valueOf(LocalDateTime.parse(date)),
-            selectedTimeslotId
-        );
-
-        return ResponseEntity.ok(getBookingById(bookingId));
-    }
-
-    @PostMapping("/bookings/{bookingId}/pay")
-    @Transactional
-    public ResponseEntity<Map<String, Object>> payBooking(
-            @PathVariable int bookingId,
-            @RequestBody Map<String, Object> body) {
-
-        Map<String, Object> booking = getBookingById(bookingId);
-        if (booking == null) {
-            return ResponseEntity.status(404).body(Map.of("error", "Booking not found."));
-        }
-
-        int clientId = Integer.parseInt(booking.get("clientId").toString());
-        int serviceId = Integer.parseInt(booking.get("serviceId").toString());
-
-        Map<String, Object> service = catalogService.findServiceById(serviceId);
-        if (service == null) {
-            return ResponseEntity.status(500).body(Map.of("error", "Service for booking not found."));
-        }
-
-        Map<String, Object> paymentDetails = null;
-
-        if (body.get("paymentMethodId") != null) {
-            String paymentMethodId = body.get("paymentMethodId").toString();
-            List<Map<String, Object>> savedMethods = clientService.getPaymentMethods(clientId);
-
-            for (Map<String, Object> method : savedMethods) {
-                if (paymentMethodId.equals(method.get("id"))) {
-                    paymentDetails = method;
-                    break;
-                }
-            }
-
-            if (paymentDetails == null) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Saved payment method not found."));
-            }
-        } else {
-            Object cardNumber = body.get("cardNumber");
-            Object cvv = body.get("cvv");
-            Object expiryDate = body.get("expiryDate");
-
-            if (cardNumber == null || cardNumber.toString().isBlank()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "cardNumber is required."));
-            }
-            if (cvv == null || cvv.toString().isBlank()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "cvv is required."));
-            }
-            if (expiryDate == null || expiryDate.toString().isBlank()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "expiryDate is required."));
-            }
-
-            paymentDetails = new LinkedHashMap<>();
-            paymentDetails.put("type", "credit-card");
-        }
-
-        double basePrice = Double.parseDouble(service.get("price").toString());
-        Map<String, Object> policyRow = getPolicyRow();
-        String pricingStrategy = policyRow.get("pricingStrategy").toString().toLowerCase();
-
-        double finalPrice = pricingStrategy.contains("tax")
-                ? Math.round(basePrice * 1.13 * 100.0) / 100.0
-                : basePrice;
-
-        jdbcTemplate.update(
-            "UPDATE bookings SET status = 'Paid', final_price = ?, payment_method = ? WHERE id = ?",
-            finalPrice,
-            paymentDetails.get("type"),
-            bookingId
-        );
-
-        return ResponseEntity.ok(Map.of(
-            "message", String.format(
-                "Payment processed successfully using %s. Final price is %.2f.",
-                paymentDetails.get("type"), finalPrice
-            ),
-            "bookingId", bookingId,
-            "status", "Paid",
-            "finalPrice", finalPrice,
-            "paymentMethod", paymentDetails.get("type")
-        ));
-    }
-
     @PostMapping("/timeslots")
-    @Transactional
     public ResponseEntity<Map<String, Object>> createTimeslot(@RequestBody Map<String, Object> body) {
         Object consultantIdObj = body.get("consultantId");
         Object dateObj = body.get("date");
@@ -347,8 +111,7 @@ public class BookingController {
 
         if (consultantIdObj == null || dateObj == null || startTimeObj == null || endTimeObj == null) {
             return ResponseEntity.badRequest().body(Map.of(
-                "error", "consultantId, date, startTime, and endTime are required."
-            ));
+                    "error", "consultantId, date, startTime, and endTime are required."));
         }
 
         int consultantId;
@@ -358,102 +121,342 @@ public class BookingController {
             return ResponseEntity.badRequest().body(Map.of("error", "consultantId must be a number."));
         }
 
-        LocalDate date = LocalDate.parse(dateObj.toString());
-        LocalTime startTime = LocalTime.parse(startTimeObj.toString());
-        LocalTime endTime = LocalTime.parse(endTimeObj.toString());
+        String date = dateObj.toString();
+        String startTime = startTimeObj.toString();
+        String endTime = endTimeObj.toString();
 
-        Integer id = jdbcTemplate.queryForObject(
-            "INSERT INTO timeslots (consultant_id, slot_date, start_time, end_time, booked) " +
-            "VALUES (?, ?, ?, ?, FALSE) RETURNING id",
-            Integer.class,
-            consultantId, date, startTime, endTime
-        );
+        try {
+            LocalDate.parse(date);
+            LocalTime.parse(startTime);
+            LocalTime.parse(endTime);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid date or time format."));
+        }
 
-        return ResponseEntity.ok(
-            jdbcTemplate.queryForMap(
-                "SELECT id, consultant_id AS \"consultantId\", slot_date AS date, " +
-                "start_time AS \"startTime\", end_time AS \"endTime\", booked " +
-                "FROM timeslots WHERE id = ?",
-                id
-            )
-        );
+        // Insert and get generated id
+        Integer newId = jdbc.queryForObject(
+                "INSERT INTO timeslots (consultant_id, date, start_time, end_time, booked) VALUES (?, ?::date, ?::time, ?::time, false) RETURNING id",
+                Integer.class, consultantId, date, startTime, endTime);
+
+        Map<String, Object> timeslot = new LinkedHashMap<>();
+        timeslot.put("id", newId);
+        timeslot.put("consultantId", consultantId);
+        timeslot.put("date", date);
+        timeslot.put("startTime", startTime);
+        timeslot.put("endTime", endTime);
+        timeslot.put("booked", false);
+        return ResponseEntity.ok(timeslot);
+    }
+
+    @PostMapping("/bookings")
+    public ResponseEntity<Map<String, Object>> createBooking(@RequestBody Map<String, Object> body) {
+        Object clientIdObj = body.get("clientId");
+        Object serviceIdObj = body.get("serviceId");
+        Object dateObj = body.get("date");
+
+        if (clientIdObj == null || serviceIdObj == null || dateObj == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "clientId, serviceId, and date are required."));
+        }
+
+        int clientId;
+        int serviceId;
+        try {
+            clientId = Integer.parseInt(clientIdObj.toString());
+            serviceId = Integer.parseInt(serviceIdObj.toString());
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "clientId and serviceId must be numbers."));
+        }
+
+        String date = dateObj.toString();
+
+        // Validate client
+        Map<String, Object> client = clientService.getClientById(clientId);
+        if (client == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Client not found. Please login first."));
+        }
+
+        // Validate service
+        Service service = CatalogService.getInstance().findServiceById(serviceId);
+        if (service == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid serviceId."));
+        }
+
+        // Handle optional timeslot
+        Integer selectedTimeslotId = null;
+        Object timeslotIdObj = body.get("timeslotId");
+        if (timeslotIdObj != null && !timeslotIdObj.toString().isEmpty()) {
+            int timeslotId;
+            try {
+                timeslotId = Integer.parseInt(timeslotIdObj.toString());
+            } catch (NumberFormatException e) {
+                return ResponseEntity.badRequest().body(Map.of("error", "timeslotId must be a number."));
+            }
+            List<Map<String, Object>> slots = jdbc.queryForList(
+                    "SELECT * FROM timeslots WHERE id = ?", timeslotId);
+            if (slots.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Timeslot not found."));
+            }
+            if (Boolean.TRUE.equals(slots.get(0).get("booked"))) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Timeslot already booked."));
+            }
+            jdbc.update("UPDATE timeslots SET booked = true WHERE id = ?", timeslotId);
+            selectedTimeslotId = timeslotId;
+        }
+
+        // Resolve consultant ID by name from service (or default to 0)
+        String consultantName = service.getConsultantName();
+        Integer consultantId = consultantService.findConsultantIdByName(consultantName);
+        if (consultantId == null) consultantId = 0;
+
+        String clientName = client.get("name") != null ? client.get("name").toString() : "Client " + clientId;
+
+        // Insert booking
+        Integer bookingId = jdbc.queryForObject(
+                "INSERT INTO bookings (client_id, consultant_id, service_id, service_name, consultant_name, client_name, date, status, timeslot_id) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, 'Requested', ?) RETURNING id",
+                Integer.class,
+                clientId, consultantId, serviceId, service.getName(), consultantName, clientName,
+                date, selectedTimeslotId);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", bookingId);
+        result.put("clientId", clientId);
+        result.put("consultantId", consultantId);
+        result.put("serviceId", serviceId);
+        result.put("serviceName", service.getName());
+        result.put("consultantName", consultantName);
+        result.put("clientName", clientName);
+        result.put("date", date);
+        result.put("status", "Requested");
+        if (selectedTimeslotId != null) result.put("timeslotId", selectedTimeslotId);
+
+        // Notify (Observer pattern)
+        NotificationService.getInstance().notifyObservers(
+                "New booking #" + bookingId + " requested by client " + clientId);
+
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/bookings/{bookingId}/cancel")
+    public ResponseEntity<Map<String, Object>> cancelBooking(@PathVariable int bookingId) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT * FROM bookings WHERE id = ?", bookingId);
+        if (rows.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("error", "Booking not found."));
+        }
+        Map<String, Object> booking = rows.get(0);
+        String status = (String) booking.get("status");
+
+        if (!"Requested".equalsIgnoreCase(status)
+                && !"Confirmed".equalsIgnoreCase(status)
+                && !"PendingPayment".equalsIgnoreCase(status)) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Only Requested, Confirmed, or PendingPayment bookings can be cancelled."));
+        }
+
+        Object serviceIdObj = booking.get("service_id");
+        int serviceId = ((Number) serviceIdObj).intValue();
+        Service service = CatalogService.getInstance().findServiceById(serviceId);
+        if (service == null) {
+            return ResponseEntity.status(500).body(Map.of("error", "Service for booking not found."));
+        }
+
+        CancellationPolicy policy = SystemPolicy.getInstance().getCancellationPolicy();
+        double cancellationFee = 0.0;
+        if (policy != null) {
+            String policyClass = policy.getClass().getSimpleName();
+            switch (policyClass) {
+                case "FlexibleCancellation" -> cancellationFee = 0.0;
+                case "StrictCancellation" -> cancellationFee = SystemPolicy.getInstance().getCancellationFee();
+                case "NoRefundCancellation" -> cancellationFee = service.getRate();
+                default -> cancellationFee = 0.0;
+            }
+        }
+
+        // Drive transition through the real State Pattern
+        Booking bookingState = Booking.forStateTransition(status);
+        bookingState.cancel();
+        String newStatus = bookingState.getStateName(); // "Cancelled"
+
+        jdbc.update("UPDATE bookings SET status = ?, cancellation_fee = ? WHERE id = ?",
+                newStatus, cancellationFee, bookingId);
+
+        // Free up timeslot if any
+        Object timeslotId = booking.get("timeslot_id");
+        if (timeslotId != null) {
+            jdbc.update("UPDATE timeslots SET booked = false WHERE id = ?", timeslotId);
+        }
+
+        // Notify (Observer pattern fires to subscribed observers)
+        NotificationService.getInstance().notifyObservers(
+                "Booking #" + bookingId + " has been cancelled. Fee: $" + cancellationFee);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Booking cancelled successfully.",
+                "bookingId", bookingId,
+                "cancellationFee", cancellationFee));
+    }
+
+    @PostMapping("/bookings/{bookingId}/pay")
+    public ResponseEntity<Map<String, Object>> payBooking(
+            @PathVariable int bookingId,
+            @RequestBody Map<String, Object> body) {
+
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT * FROM bookings WHERE id = ?", bookingId);
+        if (rows.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("error", "Booking not found."));
+        }
+        Map<String, Object> booking = rows.get(0);
+        String status = (String) booking.get("status");
+
+        // Validate booking is in a payable state
+        if (!"PendingPayment".equalsIgnoreCase(status) && !"Confirmed".equalsIgnoreCase(status)) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Payment can only be processed for bookings in PendingPayment or Confirmed status. Current status: " + status));
+        }
+
+        int clientId = ((Number) booking.get("client_id")).intValue();
+
+        // Resolve payment details
+        Map<String, Object> paymentDetails;
+        Object paymentMethodIdObj = body.get("paymentMethodId");
+
+        if (paymentMethodIdObj != null) {
+            // Use saved payment method
+            String paymentMethodId = paymentMethodIdObj.toString();
+            List<Map<String, Object>> methods = clientService.getPaymentMethods(clientId);
+            paymentDetails = methods.stream()
+                    .filter(m -> paymentMethodId.equals(m.get("id")))
+                    .findFirst()
+                    .orElse(null);
+            if (paymentDetails == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Saved payment method not found."));
+            }
+        } else {
+            // New payment details
+            String type = body.get("type") != null ? body.get("type").toString() : "credit-card";
+            paymentDetails = new LinkedHashMap<>();
+            paymentDetails.put("type", type);
+            paymentDetails.put("cardNumber", body.get("cardNumber"));
+            paymentDetails.put("cvv", body.get("cvv"));
+            paymentDetails.put("expiryDate", body.get("expiryDate"));
+        }
+
+        // Get service and apply pricing strategy
+        int serviceId = ((Number) booking.get("service_id")).intValue();
+        Service service = CatalogService.getInstance().findServiceById(serviceId);
+        if (service == null) {
+            return ResponseEntity.status(500).body(Map.of("error", "Service not found."));
+        }
+
+        double finalPrice = SystemPolicy.getInstance().getPricingStrategy() != null
+                ? SystemPolicy.getInstance().getPricingStrategy().finalPrice(service)
+                : service.getRate();
+
+        String methodType = paymentDetails.get("type") != null ? paymentDetails.get("type").toString() : "credit-card";
+        String transactionId = UUID.randomUUID().toString();
+
+        // Drive transition through the real State Pattern
+        Booking bookingState = Booking.forStateTransition(status);
+        bookingState.pay();
+        String newStatus = bookingState.getStateName(); // "Paid"
+
+        jdbc.update("UPDATE bookings SET status = ?, final_price = ?, payment_method = ? WHERE id = ?",
+                newStatus, finalPrice, methodType, bookingId);
+
+        // Record in payment history (UC7)
+        clientService.recordPayment(clientId, bookingId, finalPrice, methodType, transactionId);
+
+        // Notify
+        NotificationService.getInstance().notifyObservers(
+                "Payment of $" + String.format("%.2f", finalPrice) + " received for booking #" + bookingId);
+
+        return ResponseEntity.ok(Map.of(
+                "message", String.format("Payment processed successfully using %s. Final price: $%.2f.", methodType, finalPrice),
+                "bookingId", bookingId,
+                "status", "Paid",
+                "finalPrice", finalPrice,
+                "paymentMethod", methodType,
+                "transactionId", transactionId));
     }
 
     @PostMapping("/bookings/{bookingId}/{action}")
-    @Transactional
     public ResponseEntity<Map<String, Object>> updateBookingAction(
             @PathVariable int bookingId,
             @PathVariable String action) {
 
-        Map<String, Object> booking = getBookingById(bookingId);
-        if (booking == null) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT * FROM bookings WHERE id = ?", bookingId);
+        if (rows.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("error", "Booking not found."));
         }
 
-        String newStatus;
-        switch (action.toLowerCase()) {
-            case "accept":
-                newStatus = "Confirmed";
-                break;
-            case "reject":
-                newStatus = "Rejected";
-                break;
-            case "complete":
-                newStatus = "Completed";
-                break;
-            default:
-                return ResponseEntity.badRequest().body(Map.of(
-                    "error", "Action must be accept, reject, or complete."
-                ));
+        if (!action.equalsIgnoreCase("accept")
+                && !action.equalsIgnoreCase("reject")
+                && !action.equalsIgnoreCase("complete")) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Action must be accept, reject, or complete."));
         }
 
-        jdbcTemplate.update(
-            "UPDATE bookings SET status = ? WHERE id = ?",
-            newStatus, bookingId
-        );
+        // Drive transition through the real State Pattern
+        String currentStatus = (String) rows.get(0).get("status");
+        Booking bookingState = Booking.forStateTransition(currentStatus);
+
+        switch (action.toLowerCase()) {
+            // accept: Requested → Confirmed → PendingPayment (two confirms, matching the state machine design)
+            case "accept" -> { bookingState.confirm(); bookingState.confirm(); }
+            case "reject"   -> bookingState.reject();
+            case "complete" -> bookingState.complete();
+        }
+
+        String newStatus = bookingState.getStateName();
+        jdbc.update("UPDATE bookings SET status = ? WHERE id = ?", newStatus, bookingId);
+
+        // Notify relevant parties
+        int clientId = ((Number) rows.get(0).get("client_id")).intValue();
+        String msg = switch (newStatus) {
+            case "PendingPayment" -> "Booking #" + bookingId + " accepted. Please proceed with payment.";
+            case "Rejected" -> "Booking #" + bookingId + " was rejected by the consultant.";
+            case "Completed" -> "Booking #" + bookingId + " has been completed.";
+            default -> "Booking #" + bookingId + " status updated to " + newStatus;
+        };
+        NotificationService.getInstance().notifyObservers(msg);
 
         return ResponseEntity.ok(Map.of(
-            "message", "Booking updated successfully.",
-            "bookingId", bookingId,
-            "status", newStatus
-        ));
+                "message", "Booking updated successfully.",
+                "bookingId", bookingId,
+                "status", newStatus));
     }
 
-    private Map<String, Object> getBookingById(int bookingId) {
-        try {
-            return jdbcTemplate.queryForMap(
-                "SELECT id, client_id AS \"clientId\", consultant_id AS \"consultantId\", " +
-                "client_name AS \"clientName\", consultant_name AS \"consultantName\", " +
-                "service_id AS \"serviceId\", service_name AS \"serviceName\", " +
-                "booking_time AS date, status, final_price AS \"finalPrice\", " +
-                "payment_method AS \"paymentMethod\", cancellation_fee AS \"cancellationFee\", " +
-                "timeslot_id AS \"timeslotId\" " +
-                "FROM bookings WHERE id = ?",
-                bookingId
-            );
-        } catch (EmptyResultDataAccessException e) {
-            return null;
-        }
+    // Helper: DB row to API map
+    private Map<String, Object> toBookingMap(Map<String, Object> row) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", row.get("id"));
+        m.put("clientId", row.get("client_id"));
+        m.put("consultantId", row.get("consultant_id"));
+        m.put("serviceId", row.get("service_id"));
+        m.put("serviceName", row.get("service_name"));
+        m.put("consultantName", row.get("consultant_name"));
+        m.put("clientName", row.get("client_name"));
+        m.put("date", row.get("date") != null ? row.get("date").toString() : null);
+        m.put("status", row.get("status"));
+        m.put("timeslotId", row.get("timeslot_id"));
+        m.put("finalPrice", row.get("final_price"));
+        m.put("paymentMethod", row.get("payment_method"));
+        m.put("cancellationFee", row.get("cancellation_fee"));
+        return m;
     }
 
-    private Map<String, Object> getPolicyRow() {
-        try {
-            return jdbcTemplate.queryForMap(
-                "SELECT pricing_strategy AS \"pricingStrategy\", " +
-                "cancellation_policy AS \"cancellationPolicy\", " +
-                "cancellation_fee AS \"cancellationFee\", " +
-                "notifications_enabled AS \"notificationsEnabled\", " +
-                "refunds_enabled AS \"refundsEnabled\" " +
-                "FROM system_policies WHERE id = 1"
-            );
-        } catch (EmptyResultDataAccessException e) {
-            Map<String, Object> defaults = new LinkedHashMap<>();
-            defaults.put("pricingStrategy", "BasePrice");
-            defaults.put("cancellationPolicy", "Flexible");
-            defaults.put("cancellationFee", 20.0);
-            defaults.put("notificationsEnabled", true);
-            defaults.put("refundsEnabled", true);
-            return defaults;
-        }
+    private Map<String, Object> toTimeslotMap(Map<String, Object> row) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", row.get("id"));
+        m.put("consultantId", row.get("consultant_id"));
+        m.put("date", row.get("date") != null ? row.get("date").toString() : null);
+        m.put("startTime", row.get("start_time") != null ? row.get("start_time").toString() : null);
+        m.put("endTime", row.get("end_time") != null ? row.get("end_time").toString() : null);
+        m.put("booked", row.get("booked"));
+        return m;
     }
 }

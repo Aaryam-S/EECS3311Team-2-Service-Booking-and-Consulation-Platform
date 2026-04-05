@@ -1,6 +1,12 @@
 package model;
 
 import state.BookingState;
+import state.CancelledState;
+import state.CompletedState;
+import state.ConfirmedState;
+import state.PaidState;
+import state.PendingPaymentState;
+import state.RejectedState;
 import state.RequestedState;
 
 public class Booking {
@@ -83,5 +89,31 @@ public class Booking {
     
     public PaymentReceipt getPaymentReceipt() {
         return paymentReceipt;
+    }
+
+    /**
+     * Factory for state-machine-only use in controllers.
+     * Reconstructs a Booking in the given state so real state transitions can be run.
+     */
+    public static Booking forStateTransition(String currentStatus) {
+        TimeSlot stub = new TimeSlot(
+                java.time.LocalDateTime.now(),
+                java.time.LocalDateTime.now().plusHours(1));
+        Booking b = new Booking(null, null, null, stub);
+        b.state = statusToState(currentStatus);
+        return b;
+    }
+
+    private static BookingState statusToState(String status) {
+        if (status == null) return new RequestedState();
+        return switch (status.toLowerCase()) {
+            case "confirmed"       -> new ConfirmedState();
+            case "pendingpayment"  -> new PendingPaymentState();
+            case "paid"            -> new PaidState();
+            case "cancelled"       -> new CancelledState();
+            case "completed"       -> new CompletedState();
+            case "rejected"        -> new RejectedState();
+            default                -> new RequestedState();
+        };
     }
 }

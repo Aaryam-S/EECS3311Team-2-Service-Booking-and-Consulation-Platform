@@ -1,113 +1,97 @@
 package service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
-@Service
+@Component
 public class ConsultantService {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final JdbcTemplate jdbc;
 
-    public ConsultantService(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public ConsultantService(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
     }
 
     public int registerConsultant(String username, String password, String email, String name, String specialty) {
-        Integer existing = jdbcTemplate.query(
-            "SELECT id FROM consultants WHERE username = ?",
-            rs -> rs.next() ? rs.getInt("id") : null,
-            username
-        );
-
-        if (existing != null) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM consultants WHERE username = ?", Integer.class, username);
+        if (count != null && count > 0) {
             throw new IllegalArgumentException("Username already exists.");
         }
-
-        return jdbcTemplate.queryForObject(
-            "INSERT INTO consultants (username, password, email, name, specialty, approved, status) " +
-            "VALUES (?, ?, ?, ?, ?, FALSE, 'Pending') RETURNING id",
-            Integer.class,
-            username, password, email, name, specialty
-        );
+        Integer id = jdbc.queryForObject(
+                "INSERT INTO consultants (username, password, email, name, specialty, approved, status) VALUES (?, ?, ?, ?, ?, false, 'Pending') RETURNING id",
+                Integer.class, username, password, email, name, specialty);
+        return id != null ? id : -1;
     }
 
     public Map<String, Object> loginConsultant(String username, String password) {
-        try {
-            Map<String, Object> consultant = jdbcTemplate.queryForMap(
-                "SELECT id, username, password, email, name, specialty, approved, status " +
-                "FROM consultants WHERE username = ?",
-                username
-            );
-
-            if (!password.equals(consultant.get("password"))) {
-                throw new IllegalArgumentException("Invalid password.");
-            }
-
-            Boolean approved = (Boolean) consultant.get("approved");
-            if (approved == null || !approved) {
-                throw new IllegalArgumentException("Consultant account not yet approved by admin.");
-            }
-
-            return Map.of(
-                "id", consultant.get("id"),
-                "username", consultant.get("username"),
-                "email", consultant.get("email"),
-                "name", consultant.get("name"),
-                "specialty", consultant.get("specialty"),
-                "status", consultant.get("status")
-            );
-        } catch (EmptyResultDataAccessException e) {
+        List<Map<String, Object>> results = jdbc.queryForList(
+                "SELECT * FROM consultants WHERE username = ?", username);
+        if (results.isEmpty()) {
             throw new IllegalArgumentException("Consultant not found.");
         }
+        Map<String, Object> consultant = results.get(0);
+        if (!password.equals(consultant.get("password"))) {
+            throw new IllegalArgumentException("Invalid password.");
+        }
+        Boolean approved = (Boolean) consultant.get("approved");
+        if (approved == null || !approved) {
+            throw new IllegalArgumentException("Consultant account not yet approved by admin.");
+        }
+        return toConsultantMap(consultant);
     }
 
     public Map<String, Object> getConsultantById(int consultantId) {
-        try {
-            return jdbcTemplate.queryForMap(
-                "SELECT id, username, email, name, specialty, approved, status " +
-                "FROM consultants WHERE id = ?",
-                consultantId
-            );
-        } catch (EmptyResultDataAccessException e) {
-            return null;
-        }
+        List<Map<String, Object>> results = jdbc.queryForList(
+                "SELECT * FROM consultants WHERE id = ?", consultantId);
+        return results.isEmpty() ? null : toConsultantMap(results.get(0));
+    }
+
+    public Integer findConsultantIdByName(String name) {
+        List<Map<String, Object>> results = jdbc.queryForList(
+                "SELECT id FROM consultants WHERE name = ? AND approved = true LIMIT 1", name);
+        if (results.isEmpty()) return null;
+        return (Integer) results.get(0).get("id");
     }
 
     public List<Map<String, Object>> getPendingConsultants() {
-        return jdbcTemplate.queryForList(
-            "SELECT id, name, email, specialty, status FROM consultants WHERE approved = FALSE ORDER BY id"
-        );
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT * FROM consultants WHERE approved = false");
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) result.add(toConsultantMap(row));
+        return result;
     }
 
     public List<Map<String, Object>> getApprovedConsultants() {
-        return jdbcTemplate.queryForList(
-            "SELECT id, name, email, specialty, status FROM consultants WHERE approved = TRUE ORDER BY id"
-        );
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT * FROM consultants WHERE approved = true");
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) result.add(toConsultantMap(row));
+        return result;
     }
 
     public void approveConsultant(int consultantId) {
-        int updated = jdbcTemplate.update(
-            "UPDATE consultants SET approved = TRUE, status = 'Approved' WHERE id = ?",
-            consultantId
-        );
-
-        if (updated == 0) {
-            throw new IllegalArgumentException("Consultant not found.");
-        }
+        jdbc.update("UPDATE consultants SET approved = true, status = 'Approved' WHERE id = ?", consultantId);
     }
 
     public void rejectConsultant(int consultantId) {
-        int deleted = jdbcTemplate.update(
-            "DELETE FROM consultants WHERE id = ?",
-            consultantId
-        );
+        jdbc.update("DELETE FROM consultants WHERE id = ?", consultantId);
+    }
 
-        if (deleted == 0) {
-            throw new IllegalArgumentException("Consultant not found.");
-        }
+    private Map<String, Object> toConsultantMap(Map<String, Object> row) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", row.get("id"));
+        m.put("username", row.get("username"));
+        m.put("email", row.get("email"));
+        m.put("name", row.get("name"));
+        m.put("specialty", row.get("specialty"));
+        m.put("approved", row.get("approved"));
+        m.put("status", row.get("status"));
+        return m;
     }
 }
