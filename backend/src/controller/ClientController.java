@@ -6,14 +6,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import service.ClientService;
 
@@ -22,29 +15,28 @@ import service.ClientService;
 @CrossOrigin(origins = "*")
 public class ClientController {
 
-    private final ClientService clientService = ClientService.getInstance();
+    private final ClientService clientService;
     private final AtomicInteger paymentMethodIdCounter = new AtomicInteger(1000);
 
-    // Get payment methods for a client
-    @GetMapping("/{clientId}/payment-methods")
-    public ResponseEntity<List<Map<String, Object>>> getPaymentMethods(
-            @PathVariable int clientId
-    ) {
-        List<Map<String, Object>> methods = clientService.getPaymentMethods(clientId);
-        return ResponseEntity.ok(methods);
+    public ClientController(ClientService clientService) {
+        this.clientService = clientService;
     }
 
-    // Add a payment method for a client
+    @GetMapping("/{clientId}/payment-methods")
+    public ResponseEntity<List<Map<String, Object>>> getPaymentMethods(@PathVariable int clientId) {
+        return ResponseEntity.ok(clientService.getPaymentMethods(clientId));
+    }
+
     @PostMapping("/{clientId}/payment-methods")
     public ResponseEntity<Map<String, Object>> addPaymentMethod(
             @PathVariable int clientId,
-            @RequestBody Map<String, Object> body
-    ) {
+            @RequestBody Map<String, Object> body) {
+
         Object typeObj = body.get("type");
 
         if (typeObj == null) {
             return ResponseEntity.badRequest().body(Map.of(
-                    "error", "type is required (credit-card, debit-card, paypal, bank-transfer)."
+                "error", "type is required (credit-card, debit-card, paypal, bank-transfer)."
             ));
         }
 
@@ -62,29 +54,30 @@ public class ClientController {
 
             if (cardNumberObj == null || cvvObj == null || expiryDateObj == null) {
                 return ResponseEntity.badRequest().body(Map.of(
-                        "error", "cardNumber, cvv, and expiryDate are required for card payments."
+                    "error", "cardNumber, cvv, and expiryDate are required for card payments."
                 ));
             }
 
             String cardNumber = cardNumberObj.toString();
             if (cardNumber.length() != 16) {
                 return ResponseEntity.badRequest().body(Map.of(
-                        "error", "Card number must be 16 digits."
+                    "error", "Card number must be 16 digits."
                 ));
             }
 
             paymentMethod.put("cardNumber", cardNumber);
             paymentMethod.put("cvv", cvvObj.toString());
             paymentMethod.put("expiryDate", expiryDateObj.toString());
-            paymentMethod.put("lastFour", cardNumber.substring(12)); // Last 4 digits
+            paymentMethod.put("lastFour", cardNumber.substring(12));
 
         } else if (type.equals("paypal")) {
             Object emailObj = body.get("email");
             if (emailObj == null) {
                 return ResponseEntity.badRequest().body(Map.of(
-                        "error", "email is required for PayPal."
+                    "error", "email is required for PayPal."
                 ));
             }
+
             paymentMethod.put("email", emailObj.toString());
             paymentMethod.put("lastFour", emailObj.toString());
 
@@ -94,50 +87,50 @@ public class ClientController {
 
             if (accountNumberObj == null || routingNumberObj == null) {
                 return ResponseEntity.badRequest().body(Map.of(
-                        "error", "accountNumber and routingNumber are required for bank transfers."
+                    "error", "accountNumber and routingNumber are required for bank transfers."
                 ));
             }
 
             String accountNumber = accountNumberObj.toString();
             paymentMethod.put("accountNumber", accountNumber);
             paymentMethod.put("routingNumber", routingNumberObj.toString());
-            paymentMethod.put("lastFour", accountNumber.length() >= 4 ? accountNumber.substring(accountNumber.length() - 4) : accountNumber);
+            paymentMethod.put("lastFour", accountNumber.length() >= 4
+                    ? accountNumber.substring(accountNumber.length() - 4)
+                    : accountNumber);
 
         } else {
             return ResponseEntity.badRequest().body(Map.of(
-                    "error", "Invalid payment type. Must be credit-card, debit-card, paypal, or bank-transfer."
+                "error", "Invalid payment type. Must be credit-card, debit-card, paypal, or bank-transfer."
             ));
         }
 
         try {
             clientService.addPaymentMethod(clientId, paymentMethod);
             return ResponseEntity.ok(Map.of(
-                    "message", "Payment method added successfully.",
-                    "methodId", methodId,
-                    "type", type
+                "message", "Payment method added successfully.",
+                "methodId", methodId,
+                "type", type
             ));
         } catch (Exception e) {
             return ResponseEntity.status(404).body(Map.of(
-                    "error", "Client not found."
+                "error", e.getMessage()
             ));
         }
     }
 
-    // Delete a payment method
     @DeleteMapping("/{clientId}/payment-methods/{methodId}")
     public ResponseEntity<Map<String, Object>> deletePaymentMethod(
             @PathVariable int clientId,
-            @PathVariable String methodId
-    ) {
+            @PathVariable String methodId) {
         try {
             clientService.removePaymentMethod(clientId, methodId);
             return ResponseEntity.ok(Map.of(
-                    "message", "Payment method deleted successfully.",
-                    "methodId", methodId
+                "message", "Payment method deleted successfully.",
+                "methodId", methodId
             ));
         } catch (Exception e) {
             return ResponseEntity.status(404).body(Map.of(
-                    "error", "Client or payment method not found."
+                "error", e.getMessage()
             ));
         }
     }

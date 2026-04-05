@@ -1,110 +1,126 @@
 package service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+
+@Service
 public class ClientService {
-    private static ClientService instance;
-    private final List<Map<String, Object>> clients = new ArrayList<>();
-    private final AtomicInteger clientIdCounter = new AtomicInteger(1);
 
-    private ClientService() {
-    }
+    private final JdbcTemplate jdbcTemplate;
 
-    public static synchronized ClientService getInstance() {
-        if (instance == null) {
-            instance = new ClientService();
-        }
-        return instance;
+    public ClientService(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     public int registerClient(String username, String password, String email, String name) {
-        // Check if username already exists
-        for (Map<String, Object> client : clients) {
-            if (username.equals(client.get("username"))) {
-                throw new IllegalArgumentException("Username already exists.");
-            }
+        Integer existing = jdbcTemplate.query(
+            "SELECT id FROM clients WHERE username = ?",
+            rs -> rs.next() ? rs.getInt("id") : null,
+            username
+        );
+
+        if (existing != null) {
+            throw new IllegalArgumentException("Username already exists.");
         }
 
-        int clientId = clientIdCounter.getAndIncrement();
-
-        Map<String, Object> client = new LinkedHashMap<>();
-        client.put("id", clientId);
-        client.put("username", username);
-        client.put("password", password); // Not hashed for demo
-        client.put("email", email);
-        client.put("name", name);
-        client.put("paymentMethods", new ArrayList<>());
-
-        clients.add(client);
-        return clientId;
+        return jdbcTemplate.queryForObject(
+            "INSERT INTO clients (username, password, email, name) VALUES (?, ?, ?, ?) RETURNING id",
+            Integer.class,
+            username, password, email, name
+        );
     }
 
     public Map<String, Object> loginClient(String username, String password) {
-        for (Map<String, Object> client : clients) {
-            if (username.equals(client.get("username"))) {
-                if (password.equals(client.get("password"))) {
-                    return new HashMap<>(client);
-                } else {
-                    throw new IllegalArgumentException("Invalid password.");
-                }
+        try {
+            Map<String, Object> client = jdbcTemplate.queryForMap(
+                "SELECT id, username, password, email, name FROM clients WHERE username = ?",
+                username
+            );
+
+            if (!password.equals(client.get("password"))) {
+                throw new IllegalArgumentException("Invalid password.");
             }
+
+            return Map.of(
+                "id", client.get("id"),
+                "username", client.get("username"),
+                "email", client.get("email"),
+                "name", client.get("name")
+            );
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("Client not found.");
         }
-        throw new IllegalArgumentException("Client not found.");
     }
 
     public Map<String, Object> getClientById(int clientId) {
-        for (Map<String, Object> client : clients) {
-            if ((Integer) client.get("id") == clientId) {
-                return new HashMap<>(client);
-            }
+        try {
+            return jdbcTemplate.queryForMap(
+                "SELECT id, username, email, name FROM clients WHERE id = ?",
+                clientId
+            );
+        } catch (EmptyResultDataAccessException e) {
+            return null;
         }
-        return null;
     }
 
     public List<Map<String, Object>> getPaymentMethods(int clientId) {
-        Map<String, Object> client = getClientById(clientId);
-        if (client != null) {
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> methods = (List<Map<String, Object>>) client.get("paymentMethods");
-            return methods != null ? methods : new ArrayList<>();
-        }
-        return new ArrayList<>();
+        return jdbcTemplate.queryForList(
+            "SELECT id, type, card_number AS \"cardNumber\", cvv, expiry_date AS \"expiryDate\", " +
+            "email, account_number AS \"accountNumber\", routing_number AS \"routingNumber\", " +
+            "last_four AS \"lastFour\" " +
+            "FROM payment_methods WHERE client_id = ? ORDER BY id",
+            clientId
+        );
     }
 
     public void addPaymentMethod(int clientId, Map<String, Object> paymentMethod) {
-        for (Map<String, Object> client : clients) {
-            if ((Integer) client.get("id") == clientId) {
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object>> methods = (List<Map<String, Object>>) client.get("paymentMethods");
-                if (methods == null) {
-                    methods = new ArrayList<>();
-                    client.put("paymentMethods", methods);
-                }
-                methods.add(new LinkedHashMap<>(paymentMethod));
-                return;
-            }
+        Integer exists = jdbcTemplate.query(
+            "SELECT id FROM clients WHERE id = ?",
+            rs -> rs.next() ? rs.getInt("id") : null,
+            clientId
+        );
+
+        if (exists == null) {
+            throw new IllegalArgumentException("Client not found.");
         }
+
+        jdbcTemplate.update(
+            "INSERT INTO payment_methods " +
+            "(id, client_id, type, card_number, cvv, expiry_date, email, account_number, routing_number, last_four) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            paymentMethod.get("id"),
+            clientId,
+            paymentMethod.get("type"),
+            paymentMethod.get("cardNumber"),
+            paymentMethod.get("cvv"),
+            paymentMethod.get("expiryDate"),
+            paymentMethod.get("email"),
+            paymentMethod.get("accountNumber"),
+            paymentMethod.get("routingNumber"),
+            paymentMethod.get("lastFour")
+        );
     }
 
     public void removePaymentMethod(int clientId, String methodId) {
-        for (Map<String, Object> client : clients) {
-            if ((Integer) client.get("id") == clientId) {
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object>> methods = (List<Map<String, Object>>) client.get("paymentMethods");
-                if (methods != null) {
-                    methods.removeIf(m -> methodId.equals(m.get("id")));
-                }
-                return;
-            }
+        int deleted = jdbcTemplate.update(
+            "DELETE FROM payment_methods WHERE client_id = ? AND id = ?",
+            clientId, methodId
+        );
+
+        if (deleted == 0) {
+            throw new IllegalArgumentException("Client or payment method not found.");
         }
     }
 
     public int getTotalClients() {
-        return clients.size();
+        Integer count = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM clients",
+            Integer.class
+        );
+        return count == null ? 0 : count;
     }
 }

@@ -1,53 +1,61 @@
 package service;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
-import model.Service;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
 
+@Service
 public class CatalogService {
-    // Singleton Pattern
-    private static CatalogService instance;
-    private List<Service> availableServices;
 
-    private CatalogService() {
-        availableServices = new ArrayList<>();
-        // Seed data for demonstration
-        availableServices.add(new Service("Software Consulting", 150.00, 60, "John Doe"));
-        availableServices.add(new Service("Career Coaching", 100.00, 45, "Jane Smith"));
-        availableServices.add(new Service("Legal Advice", 200.00, 30, "Bob Johnson"));
+    private final JdbcTemplate jdbcTemplate;
+
+    public CatalogService(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
     }
 
-    public static synchronized CatalogService getInstance() {
-        if (instance == null) {
-            instance = new CatalogService();
+    public List<Map<String, Object>> getAllServices() {
+        return jdbcTemplate.queryForList(
+            "SELECT id, name, consultant_name AS \"consultantName\", " +
+            "base_price AS price, duration_minutes AS duration " +
+            "FROM services ORDER BY id"
+        );
+    }
+
+    public Map<String, Object> findServiceById(int id) {
+        try {
+            return jdbcTemplate.queryForMap(
+                "SELECT id, name, consultant_id AS \"consultantId\", " +
+                "consultant_name AS \"consultantName\", base_price AS price, " +
+                "duration_minutes AS duration " +
+                "FROM services WHERE id = ?",
+                id
+            );
+        } catch (EmptyResultDataAccessException e) {
+            return null;
         }
-        return instance;
     }
 
-    public List<Service> getAllServices() {
-        return availableServices;
-    }
+    public Map<String, Object> addService(
+            String name,
+            Integer consultantId,
+            String consultantName,
+            Integer duration,
+            Double price
+    ) {
+        Integer id = jdbcTemplate.queryForObject(
+            "INSERT INTO services (name, consultant_id, consultant_name, duration_minutes, base_price) " +
+            "VALUES (?, ?, ?, ?, ?) RETURNING id",
+            Integer.class,
+            name,
+            consultantId,
+            consultantName,
+            duration,
+            price
+        );
 
-    public void addService(Service service) {
-        availableServices.add(service);
-    }
-
-    public Service findServiceByName(String name) {
-        for (Service s : availableServices) {
-            if (s.getName().equalsIgnoreCase(name)) {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    public Service findServiceById(int id) {
-        for (Service s : availableServices) {
-            if (s.getId() == id) {
-                return s;
-            }
-        }
-        return null;
+        return findServiceById(id);
     }
 }
