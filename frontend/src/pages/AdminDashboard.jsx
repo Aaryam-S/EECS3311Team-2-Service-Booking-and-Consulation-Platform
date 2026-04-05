@@ -283,35 +283,6 @@ export default function AdminDashboard() {
                     <button type="submit">Update Policies</button>
                 </form>
             </section>
-
-            <section>
-                <h2>System Status</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '20px' }}>
-                    <div style={{ border: '1px solid #4a5568', padding: '15px', borderRadius: '8px', textAlign: 'center', backgroundColor: '#2d3748' }}>
-                        <h3 style={{ color: '#ffffff' }}>Total Consultants</h3>
-                        <p style={{ fontSize: '2em', fontWeight: 'bold', color: '#007bff' }}>{systemStatus.totalConsultants}</p>
-                        <p style={{ fontSize: '0.9em', color: '#9da5b0' }}>
-                            {systemStatus.approvedConsultants || 0} approved, {systemStatus.pendingConsultants || 0} pending
-                        </p>
-                    </div>
-                    <div style={{ border: '1px solid #4a5568', padding: '15px', borderRadius: '8px', textAlign: 'center', backgroundColor: '#2d3748' }}>
-                        <h3 style={{ color: '#ffffff' }}>Total Clients</h3>
-                        <p style={{ fontSize: '2em', fontWeight: 'bold', color: '#28a745' }}>{systemStatus.totalClients}</p>
-                    </div>
-                    <div style={{ border: '1px solid #4a5568', padding: '15px', borderRadius: '8px', textAlign: 'center', backgroundColor: '#2d3748' }}>
-                        <h3 style={{ color: '#ffffff' }}>Total Bookings</h3>
-                        <p style={{ fontSize: '2em', fontWeight: 'bold', color: '#ffc107' }}>{systemStatus.totalBookings}</p>
-                        <p style={{ fontSize: '0.9em', color: '#9da5b0' }}>
-                            {systemStatus.paidBookings || 0} paid, {systemStatus.completedBookings || 0} completed, {systemStatus.cancelledBookings || 0} cancelled
-                        </p>
-                    </div>
-                    <div style={{ border: '1px solid #4a5568', padding: '15px', borderRadius: '8px', textAlign: 'center', backgroundColor: '#2d3748' }}>
-                        <h3 style={{ color: '#ffffff' }}>Total Revenue</h3>
-                        <p style={{ fontSize: '2em', fontWeight: 'bold', color: '#dc3545' }}>${systemStatus.totalRevenue?.toFixed(2) || '0.00'}</p>
-                    </div>
-                </div>
-            </section>
-
         </main>
     );
 }
