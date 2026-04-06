@@ -1,4 +1,5 @@
 # EECS3311Team-2-Service-Booking-and-Consulation-Platform
+# (Phase 1, skip to Line 118 for Phase 2)
 
 ## Architecture Overview
 
@@ -114,3 +115,86 @@ https://github.com/Aaryam-S/EECS3311Team-2-Service-Booking-and-Consulation-Platf
 
 - Precious:
 - entire notification package
+
+# EECS3311 Team 2 — Service Booking and Consultation Platform (Phase 2)
+
+## Project Overview
+
+This platform enables clients to book services with consultants, manage bookings, process payments, and receive notifications. It uses a Java/Spring backend, a React frontend, a relational database, and an integrated AI chatbot for client support.
+
+## Architecture & Features
+
+- **Backend:** Java (Spring), RESTful API, JDBC for database access, parameterized queries for security.
+- **Frontend:** React (Vite), communicates with backend via REST API.
+- **Database:** Relational (PostgreSQL/MySQL, configurable in `application.properties`).
+- **AI Chatbot:** Integrated into the client dashboard for platform Q&A (see `AI_CHATBOT_DOCUMENTATION.md`).
+- **Dockerized Deployment:** Both frontend and backend have Dockerfiles. Use `docker-compose.yml` to build and run the stack (database, backend, frontend) with one command.
+
+## Core Design Patterns
+
+- **State Pattern:** Booking lifecycle (Requested, Confirmed, Paid, Cancelled, Completed, Rejected) in `src/state/`.
+- **Strategy Pattern:** Payment methods (CreditCard, DebitCard, PayPal, BankTransfer) in `src/strategy/` and pricing/cancellation in `src/policy/`.
+- **Observer Pattern:** Notification system in `src/notification/`.
+- **Singleton Pattern:** CatalogService and SystemPolicy singletons.
+
+## Main Modules
+
+- **Model Layer:** Booking, Client, Consultant, Admin, Service, TimeSlot, SystemPolicy, PaymentReceipt, SavedPaymentMethod
+- **Service Layer:** CatalogService, PaymentService, ClientService, ConsultantService
+- **Controller Layer:** REST endpoints for all major operations (see `controller/`)
+- **UI:** React-based, with pages for login, registration, dashboards, booking, and payment
+
+## How to Run
+
+### Option 1: Docker Compose (Recommended)
+1. Ensure Docker and Docker Compose are installed.
+2. In the project root, run:
+	 ```bash
+	 docker-compose up --build
+	 ```
+3. Backend: `http://localhost:8080`  |  Frontend: `http://localhost:3000`
+
+### Option 2: Manual (Dev Mode)
+
+**Backend:**
+1. Configure DB in `backend/src/application.properties`.
+2. Build and run backend (e.g., with Maven or your IDE).
+
+**Frontend:**
+1. In `frontend/`, run:
+	 ```bash
+	 npm install
+	 npm run dev
+	 ```
+2. Access at `http://localhost:3000`.
+
+## Security Notes
+
+- All SQL queries use parameterized statements to prevent SQL injection.
+- Passwords are hashed with SHA-256. For production, use bcrypt or Argon2 for stronger security.
+
+## API Documentation
+
+- See the `controller/` package for available endpoints and their usage.
+
+## Team Member Contributions
+
+- **Aaryam**
+	- Booking, Service, Timeslot models
+	- State management (entire `state` package)
+	- CatalogService
+    - Created Phase 2 frontend
+    - Helped frontend-backend integration
+
+- **Arshjot**
+	- Client, Consultant, Admin, SystemPolicy, SavedPaymentMethod, PaymentReceipt models
+	- PaymentService
+	- All payment and policy strategies (`strategy` and `policy` packages)
+	- Frontend UI (Phase 1 Demo)
+    - Created Phase 2 backend
+    - Helped frontend-backend-database integration
+
+- **Precious**
+	- Notification system (entire `notification` package)
+    - Created Phase 2 chatbot and database components
+    - Helped backend-database integration
