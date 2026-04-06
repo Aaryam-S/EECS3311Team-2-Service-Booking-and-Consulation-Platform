@@ -83,9 +83,18 @@ public class ClientService {
     // -------------------------------------------------------------------------
 
     public List<Map<String, Object>> getPaymentMethods(int clientId) {
-        return jdbc.queryForList(
+        List<Map<String, Object>> dbResults = jdbc.queryForList(
                 "SELECT id, type, last_four, email, card_number, expiry_date FROM payment_methods WHERE client_id = ?",
                 clientId);
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> row : dbResults) {
+            Map<String, Object> mapped = new LinkedHashMap<>(row);
+            if (row.containsKey("last_four")) {
+                mapped.put("lastFour", row.get("last_four"));
+            }
+            result.add(mapped);
+        }
+        return result;
     }
 
     public void addPaymentMethod(int clientId, Map<String, Object> pm) {
