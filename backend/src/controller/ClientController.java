@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import service.ClientService;
 
 @RestController
@@ -22,7 +23,9 @@ import service.ClientService;
 @CrossOrigin(origins = "*")
 public class ClientController {
 
-    private final ClientService clientService = ClientService.getInstance();
+    @Autowired
+    private ClientService clientService;
+
     private final AtomicInteger paymentMethodIdCounter = new AtomicInteger(1000);
 
     // Get payment methods for a client
@@ -121,6 +124,14 @@ public class ClientController {
                     "error", "Client not found."
             ));
         }
+    }
+
+    // UC7: Payment History
+    @GetMapping("/{clientId}/payment-history")
+    public ResponseEntity<List<Map<String, Object>>> getPaymentHistory(
+            @PathVariable int clientId
+    ) {
+        return ResponseEntity.ok(clientService.getPaymentHistory(clientId));
     }
 
     // Delete a payment method

@@ -20,6 +20,7 @@ export default function ClientDashboard() {
     const [bookings, setBookings] = useState([]);
     const [timeslots, setTimeslots] = useState([]);
     const [savedPaymentMethods, setSavedPaymentMethods] = useState([]);
+    const [paymentHistory, setPaymentHistory] = useState([]);
 
     // State for the Booking Form
     const [selectedServiceId, setSelectedServiceId] = useState('');
@@ -58,6 +59,7 @@ export default function ClientDashboard() {
         fetchServicesAndBookings();
         fetchTimeslots();
         fetchPaymentMethods();
+        fetchPaymentHistory();
     }, [clientId]);
 
     // Update useSavedPayment when savedPaymentMethods changes
@@ -94,6 +96,15 @@ export default function ClientDashboard() {
             setSavedPaymentMethods(res.data || []);
         } catch (error) {
             console.error("Error fetching payment methods.", error);
+        }
+    };
+
+    const fetchPaymentHistory = async () => {
+        try {
+            const res = await axios.get(`${API_URL}/clients/${clientId}/payment-history`);
+            setPaymentHistory(res.data || []);
+        } catch (error) {
+            console.error("Error fetching payment history.", error);
         }
     };
 
@@ -150,6 +161,7 @@ export default function ClientDashboard() {
                     return;
                 }
                 paymentPayload = {
+                    type: 'credit-card',
                     cardNumber: cardNumber,
                     cvv: cvv,
                     expiryDate: expiryDate
@@ -168,6 +180,7 @@ export default function ClientDashboard() {
                     return;
                 }
                 paymentPayload = {
+                    type: 'debit-card',
                     cardNumber: debitCardNumber,
                     cvv: debitCvv,
                     expiryDate: debitExpiry
@@ -178,7 +191,8 @@ export default function ClientDashboard() {
                     return;
                 }
                 paymentPayload = {
-                    cardNumber: 'PAYPAL_' + paypalEmail, // Simulate PayPal as card
+                    type: 'paypal',
+                    cardNumber: 'PAYPAL_' + paypalEmail,
                     cvv: '123',
                     expiryDate: '12/99'
                 };
@@ -188,7 +202,8 @@ export default function ClientDashboard() {
                     return;
                 }
                 paymentPayload = {
-                    cardNumber: 'BANK_' + bankAccount, // Simulate bank transfer as card
+                    type: 'bank-transfer',
+                    cardNumber: 'BANK_' + bankAccount,
                     cvv: '123',
                     expiryDate: '12/99'
                 };
@@ -198,7 +213,8 @@ export default function ClientDashboard() {
         try {
             await axios.post(`${API_URL}/bookings/${paymentBookingId}/pay`, paymentPayload);
             alert("Payment successful!");
-            fetchServicesAndBookings(); // Refresh the tables
+            fetchServicesAndBookings();
+            fetchPaymentHistory();
             
             // Reset form
             setPaymentBookingId('');
@@ -430,7 +446,7 @@ export default function ClientDashboard() {
                                     <td style={{ padding: '12px', border: '1px solid #4a5568', color: '#ffffff' }}>{booking.date}</td>
                                     <td style={{ padding: '12px', border: '1px solid #4a5568', color: '#ffffff' }}><strong>{booking.status}</strong></td>
                                     <td style={{ padding: '12px', border: '1px solid #4a5568' }}>
-                                        {(booking.status === 'Requested' || booking.status === 'Confirmed') && (
+                                        {(booking.status === 'Requested' || booking.status === 'Confirmed' || booking.status === 'PendingPayment') && (
                                             <button 
                                                 onClick={() => handleCancelBooking(booking.id)}
                                                 style={{ backgroundColor: '#dc3545', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}
@@ -773,6 +789,39 @@ export default function ClientDashboard() {
 
                     <button type="submit">Process Payment</button>
                 </form>
+            </section>
+
+            <section>
+                <h2>7. Payment History</h2>
+                <button onClick={fetchPaymentHistory} style={{ marginBottom: '10px' }}>Refresh</button>
+                <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#2d3748', border: '1px solid #4a5568' }}>
+                    <thead>
+                        <tr style={{ backgroundColor: '#1a202c' }}>
+                            <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #4a5568', fontWeight: 'bold', color: '#ffffff' }}>ID</th>
+                            <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #4a5568', fontWeight: 'bold', color: '#ffffff' }}>Booking ID</th>
+                            <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #4a5568', fontWeight: 'bold', color: '#ffffff' }}>Amount</th>
+                            <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #4a5568', fontWeight: 'bold', color: '#ffffff' }}>Payment Method</th>
+                            <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #4a5568', fontWeight: 'bold', color: '#ffffff' }}>Type</th>
+                            <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #4a5568', fontWeight: 'bold', color: '#ffffff' }}>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {paymentHistory.length === 0 ? (
+                            <tr><td colSpan="6" style={{ padding: '12px', textAlign: 'center', border: '1px solid #4a5568', color: '#9da5b0', fontStyle: 'italic' }}>No payment history found.</td></tr>
+                        ) : (
+                            paymentHistory.map(ph => (
+                                <tr key={ph.id} style={{ backgroundColor: '#2d3748' }}>
+                                    <td style={{ padding: '12px', border: '1px solid #4a5568', color: '#ffffff' }}>{ph.id}</td>
+                                    <td style={{ padding: '12px', border: '1px solid #4a5568', color: '#ffffff' }}>{ph.booking_id}</td>
+                                    <td style={{ padding: '12px', border: '1px solid #4a5568', color: '#ffffff' }}>${Number(ph.amount).toFixed(2)}</td>
+                                    <td style={{ padding: '12px', border: '1px solid #4a5568', color: '#ffffff' }}>{ph.payment_method}</td>
+                                    <td style={{ padding: '12px', border: '1px solid #4a5568', color: '#ffffff' }}>{ph.type}</td>
+                                    <td style={{ padding: '12px', border: '1px solid #4a5568', color: '#ffffff' }}>{new Date(ph.created_at).toLocaleString()}</td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
             </section>
 
             <hr />
