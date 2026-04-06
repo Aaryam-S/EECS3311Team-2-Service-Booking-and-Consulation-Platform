@@ -4,7 +4,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,17 +28,21 @@ import service.ConsultantService;
 @RequestMapping("/admin")
 public class AdminController {
 
-    private final ConsultantService consultantService = ConsultantService.getInstance();
-    private final ClientService clientService = ClientService.getInstance();
+    @Autowired
+    private ConsultantService consultantService;
+
+    @Autowired
+    private ClientService clientService;
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
     private final Map<String, Object> policies = new LinkedHashMap<>();
 
     public AdminController() {
-        // Initialize with default policies
         policies.put("pricingStrategy", "Base");
         policies.put("cancellationPolicy", "Flexible");
         policies.put("cancellationFee", 20.0);
-        
-        // Set initial cancellation policy
         SystemPolicy.getInstance().setCancellationPolicy(new FlexibleCancellation());
         SystemPolicy.getInstance().setCancellationFee(20.0);
     }
@@ -58,8 +64,7 @@ public class AdminController {
     ) {
         if (!action.equalsIgnoreCase("approve") && !action.equalsIgnoreCase("reject")) {
             return ResponseEntity.badRequest().body(Map.of(
-                    "error", "Action must be approve or reject."
-            ));
+                    "error", "Action must be approve or reject."));
         }
 
         if (consultantService.getConsultantById(consultantId) == null) {
@@ -74,8 +79,7 @@ public class AdminController {
 
         return ResponseEntity.ok(Map.of(
                 "message", "Consultant " + action.toLowerCase() + "d successfully.",
-                "consultantId", consultantId
-        ));
+                "consultantId", consultantId));
     }
 
     @GetMapping("/policies")
@@ -96,13 +100,11 @@ public class AdminController {
         }
         if (cancellationPolicy != null) {
             policies.put("cancellationPolicy", cancellationPolicy.toString());
-            
-            // Set the actual cancellation policy on SystemPolicy
             CancellationPolicy policy = switch (cancellationPolicy.toString().toLowerCase()) {
                 case "flexible" -> new FlexibleCancellation();
                 case "strict" -> new StrictCancellation();
                 case "norefund" -> new NoRefundCancellation();
-                default -> throw new IllegalArgumentException("Invalid cancellation policy. Must be Flexible, Strict, or NoRefund.");
+                default -> throw new IllegalArgumentException("Invalid cancellation policy.");
             };
             SystemPolicy.getInstance().setCancellationPolicy(policy);
         }
@@ -112,9 +114,7 @@ public class AdminController {
                 policies.put("cancellationFee", fee);
                 SystemPolicy.getInstance().setCancellationFee(fee);
             } catch (NumberFormatException e) {
-                return ResponseEntity.badRequest().body(Map.of(
-                        "error", "cancellationFee must be a number."
-                ));
+                return ResponseEntity.badRequest().body(Map.of("error", "cancellationFee must be a number."));
             }
         }
 
@@ -124,25 +124,34 @@ public class AdminController {
     @GetMapping("/system-status")
     public ResponseEntity<Map<String, Object>> getSystemStatus() {
         Map<String, Object> status = new LinkedHashMap<>();
-        
-        // Get consultant counts
-        List<Map<String, Object>> pendingConsultants = consultantService.getPendingConsultants();
-        List<Map<String, Object>> approvedConsultants = consultantService.getApprovedConsultants();
-        status.put("totalConsultants", pendingConsultants.size() + approvedConsultants.size());
-        status.put("approvedConsultants", approvedConsultants.size());
-        status.put("pendingConsultants", pendingConsultants.size());
-        
-        // Get client count
+
+        // Consultant counts
+        List<Map<String, Object>> pending = consultantService.getPendingConsultants();
+        List<Map<String, Object>> approved = consultantService.getApprovedConsultants();
+        status.put("totalConsultants", pending.size() + approved.size());
+        status.put("approvedConsultants", approved.size());
+        status.put("pendingConsultants", pending.size());
+
+        // Client count
         status.put("totalClients", clientService.getTotalClients());
-        
-        // Get booking statistics
-        Map<String, Object> bookingStats = BookingController.getBookingStatistics();
-        status.put("totalBookings", bookingStats.get("totalBookings"));
-        status.put("totalRevenue", bookingStats.get("totalRevenue"));
-        status.put("paidBookings", bookingStats.get("paidBookings"));
-        status.put("completedBookings", bookingStats.get("completedBookings"));
-        status.put("cancelledBookings", bookingStats.get("cancelledBookings"));
-        
+
+        // Booking statistics from DB
+        Integer totalBookings = jdbc.queryForObject("SELECT COUNT(*) FROM bookings", Integer.class);
+        Double totalRevenue = jdbc.queryForObject(
+                "SELECT COALESCE(SUM(final_price),0) FROM bookings WHERE status IN ('Paid','Completed')", Double.class);
+        Integer paidBookings = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM bookings WHERE status = 'Paid'", Integer.class);
+        Integer completedBookings = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM bookings WHERE status = 'Completed'", Integer.class);
+        Integer cancelledBookings = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM bookings WHERE status = 'Cancelled'", Integer.class);
+
+        status.put("totalBookings", totalBookings == null ? 0 : totalBookings);
+        status.put("totalRevenue", totalRevenue == null ? 0.0 : totalRevenue);
+        status.put("paidBookings", paidBookings == null ? 0 : paidBookings);
+        status.put("completedBookings", completedBookings == null ? 0 : completedBookings);
+        status.put("cancelledBookings", cancelledBookings == null ? 0 : cancelledBookings);
+
         return ResponseEntity.ok(status);
     }
 }

@@ -38,8 +38,9 @@ export default function ConsultantDashboard() {
             const allBookings = res.data || [];
 
             // Filter bookings by status so we can put them in the right tables
+            // After accept: status is PendingPayment (not Confirmed)
             setPendingBookings(allBookings.filter(b => b.status === 'Requested'));
-            setConfirmedBookings(allBookings.filter(b => b.status === 'Confirmed' || b.status === 'Paid'));
+            setConfirmedBookings(allBookings.filter(b => b.status === 'PendingPayment' || b.status === 'Paid'));
             setCompletedBookings(allBookings.filter(b => b.status === 'Completed'));
         } catch (error) {
             console.error("Error fetching bookings. Backend might be down.", error);
@@ -177,7 +178,7 @@ export default function ConsultantDashboard() {
 
             <section>
                 <h2>3. View Booking Schedule</h2>
-                <p>Your confirmed and paid bookings.</p>
+                <p>Accepted bookings awaiting payment (PendingPayment) and paid bookings awaiting completion.</p>
                 <table>
                     <thead>
                         <tr>

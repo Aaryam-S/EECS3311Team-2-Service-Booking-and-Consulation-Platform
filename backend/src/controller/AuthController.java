@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import service.ClientService;
 import service.ConsultantService;
 
@@ -17,8 +18,11 @@ import service.ConsultantService;
 @CrossOrigin(origins = "*")
 public class AuthController {
 
-    private final ClientService clientService = ClientService.getInstance();
-    private final ConsultantService consultantService = ConsultantService.getInstance();
+    @Autowired
+    private ClientService clientService;
+
+    @Autowired
+    private ConsultantService consultantService;
 
     // Client Registration
     @PostMapping("/client/register")

@@ -1,110 +1,139 @@
 package service;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ClientService {
-    private static ClientService instance;
-    private final List<Map<String, Object>> clients = new ArrayList<>();
-    private final AtomicInteger clientIdCounter = new AtomicInteger(1);
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
 
-    private ClientService() {
+@Component
+public class ClientService {
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    // Kept for controllers that still call getInstance() — delegates to Spring bean
+    private static ClientService instance;
+
+    @Autowired
+    private void selfRegister() {
+        instance = this;
     }
 
-    public static synchronized ClientService getInstance() {
-        if (instance == null) {
-            instance = new ClientService();
-        }
+    public static ClientService getInstance() {
         return instance;
     }
 
+    // -------------------------------------------------------------------------
+    // Auth
+    // -------------------------------------------------------------------------
+
     public int registerClient(String username, String password, String email, String name) {
-        // Check if username already exists
-        for (Map<String, Object> client : clients) {
-            if (username.equals(client.get("username"))) {
-                throw new IllegalArgumentException("Username already exists.");
-            }
+        List<Map<String, Object>> existing = jdbc.queryForList(
+                "SELECT id FROM clients WHERE username = ?", username);
+        if (!existing.isEmpty()) {
+            throw new IllegalArgumentException("Username already exists.");
         }
-
-        int clientId = clientIdCounter.getAndIncrement();
-
-        Map<String, Object> client = new LinkedHashMap<>();
-        client.put("id", clientId);
-        client.put("username", username);
-        client.put("password", password); // Not hashed for demo
-        client.put("email", email);
-        client.put("name", name);
-        client.put("paymentMethods", new ArrayList<>());
-
-        clients.add(client);
-        return clientId;
+        String hashed = sha256(password);
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "INSERT INTO clients (username, password, email, name) VALUES (?, ?, ?, ?) RETURNING id",
+                username, hashed, email, name);
+        return ((Number) rows.get(0).get("id")).intValue();
     }
 
     public Map<String, Object> loginClient(String username, String password) {
-        for (Map<String, Object> client : clients) {
-            if (username.equals(client.get("username"))) {
-                if (password.equals(client.get("password"))) {
-                    return new HashMap<>(client);
-                } else {
-                    throw new IllegalArgumentException("Invalid password.");
-                }
-            }
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT id, username, email, name, password FROM clients WHERE username = ?", username);
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("Client not found.");
         }
-        throw new IllegalArgumentException("Client not found.");
+        Map<String, Object> row = rows.get(0);
+        String stored = (String) row.get("password");
+        if (!sha256(password).equals(stored)) {
+            throw new IllegalArgumentException("Invalid password.");
+        }
+        Map<String, Object> result = new LinkedHashMap<>(row);
+        result.remove("password");
+        return result;
     }
+
+    // -------------------------------------------------------------------------
+    // Lookup
+    // -------------------------------------------------------------------------
 
     public Map<String, Object> getClientById(int clientId) {
-        for (Map<String, Object> client : clients) {
-            if ((Integer) client.get("id") == clientId) {
-                return new HashMap<>(client);
-            }
-        }
-        return null;
-    }
-
-    public List<Map<String, Object>> getPaymentMethods(int clientId) {
-        Map<String, Object> client = getClientById(clientId);
-        if (client != null) {
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> methods = (List<Map<String, Object>>) client.get("paymentMethods");
-            return methods != null ? methods : new ArrayList<>();
-        }
-        return new ArrayList<>();
-    }
-
-    public void addPaymentMethod(int clientId, Map<String, Object> paymentMethod) {
-        for (Map<String, Object> client : clients) {
-            if ((Integer) client.get("id") == clientId) {
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object>> methods = (List<Map<String, Object>>) client.get("paymentMethods");
-                if (methods == null) {
-                    methods = new ArrayList<>();
-                    client.put("paymentMethods", methods);
-                }
-                methods.add(new LinkedHashMap<>(paymentMethod));
-                return;
-            }
-        }
-    }
-
-    public void removePaymentMethod(int clientId, String methodId) {
-        for (Map<String, Object> client : clients) {
-            if ((Integer) client.get("id") == clientId) {
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object>> methods = (List<Map<String, Object>>) client.get("paymentMethods");
-                if (methods != null) {
-                    methods.removeIf(m -> methodId.equals(m.get("id")));
-                }
-                return;
-            }
-        }
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT id, username, email, name FROM clients WHERE id = ?", clientId);
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     public int getTotalClients() {
-        return clients.size();
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM clients", Integer.class);
+        return count == null ? 0 : count;
+    }
+
+    // -------------------------------------------------------------------------
+    // Payment Methods
+    // -------------------------------------------------------------------------
+
+    public List<Map<String, Object>> getPaymentMethods(int clientId) {
+        return jdbc.queryForList(
+                "SELECT id, type, last_four, email, card_number, expiry_date FROM payment_methods WHERE client_id = ?",
+                clientId);
+    }
+
+    public void addPaymentMethod(int clientId, Map<String, Object> pm) {
+        jdbc.update(
+                "INSERT INTO payment_methods (id, client_id, type, card_number, cvv, expiry_date, last_four, email, account_number, routing_number) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                pm.get("id"), clientId, pm.get("type"),
+                pm.getOrDefault("cardNumber", null),
+                pm.getOrDefault("cvv", null),
+                pm.getOrDefault("expiryDate", null),
+                pm.getOrDefault("lastFour", null),
+                pm.getOrDefault("email", null),
+                pm.getOrDefault("accountNumber", null),
+                pm.getOrDefault("routingNumber", null));
+    }
+
+    public void removePaymentMethod(int clientId, String methodId) {
+        jdbc.update("DELETE FROM payment_methods WHERE id = ? AND client_id = ?", methodId, clientId);
+    }
+
+    // -------------------------------------------------------------------------
+    // Payment History (UC7)
+    // -------------------------------------------------------------------------
+
+    public List<Map<String, Object>> getPaymentHistory(int clientId) {
+        return jdbc.queryForList(
+                "SELECT id, booking_id, amount, payment_method, type, created_at FROM payment_history WHERE client_id = ? ORDER BY created_at DESC",
+                clientId);
+    }
+
+    public void recordPayment(int clientId, int bookingId, double amount, String paymentMethod, String type) {
+        jdbc.update(
+                "INSERT INTO payment_history (client_id, booking_id, amount, payment_method, type) VALUES (?,?,?,?,?)",
+                clientId, bookingId, amount, paymentMethod, type);
+    }
+
+    // -------------------------------------------------------------------------
+    // Utility
+    // -------------------------------------------------------------------------
+
+    private static String sha256(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = md.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : bytes) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
     }
 }
